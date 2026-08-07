@@ -4,8 +4,10 @@ import { loadEnv } from './env.js';
 import { openDb } from './db.js';
 import { createClient } from './discord/client.js';
 import { createRouter } from './discord/interactionRouter.js';
+import { handleCastButton, handleVoteButton } from './features/ballot.js';
 import { handleConfigCommand } from './features/configCommands.js';
 import { ensureInitMessage } from './features/initMessage.js';
+import { handleCreateModal, handleStartButton } from './features/pollCreate.js';
 
 const env = loadEnv();
 const db = openDb(env.dbPath);
@@ -16,6 +18,10 @@ ctx.ensureInitMessage = (guild) => ensureInitMessage(ctx, guild);
 
 const router = createRouter(ctx);
 router.command('ttdb-config', handleConfigCommand);
+router.component('start', handleStartButton);
+router.component('vote', handleVoteButton);
+router.component('cast', handleCastButton);
+router.modal('create', handleCreateModal);
 
 client.on(Events.InteractionCreate, (interaction) => router.dispatch(interaction));
 

@@ -105,6 +105,34 @@ poll type. That message is the entry point for everything members do.
 - If you change `poll-channel`, the old message is removed and a fresh one
   is posted in the new channel.
 
+## Starting a poll
+
+Press one of the buttons on the "Start a community poll" message. A form
+opens that explains how the poll will be scored (using this server's
+configured rules), asks for the subject — a person's name for invite votes,
+a channel for permanence votes — and asks how long the poll should stay
+open: 3, 5, 7 (default), 14, or 30 days. Shorter polls reach results
+quicker but leave less time for everyone to see them and vote, so avoid
+short durations unless there's real urgency. The close time is rounded up
+to the next hour on the clock.
+
+Guard rails: if a `poll-starter-role` is configured, only members with that
+role can start polls; duplicate polls (same type and subject as one still
+open) are refused; and channels already in the permanent category can't be
+nominated again.
+
+## Voting and privacy
+
+A new poll pings `@everyone`. Publicly, the poll shows only who started it,
+what it asks, how many people have voted, how many haven't, and when it
+closes — never who voted or how.
+
+Press **Vote / change my vote** to get a private ballot only you can see,
+with four options: *Yes!*, *No, I'd rather not…*, *Hard no*, and *I abstain
+from voting*. Your ballot shows your current vote, and you can change it
+any time until the poll closes. The poll closes at its scheduled hour — or
+immediately, once every (non-bot) member of the server has voted.
+
 ## Development
 
 Requirements: **Node.js >= 24** (the project uses the built-in `node:sqlite`

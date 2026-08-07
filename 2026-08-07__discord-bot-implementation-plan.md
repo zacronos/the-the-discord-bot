@@ -188,27 +188,27 @@ Native Windows Task Scheduler logon-trigger task: no third-party binary (NSSM) o
 
 ### 3.1 Creation modal
 
-- [ ] `src/features/pollCreate.js` — on `ttdb:start:*`: check the Q6 starter-role gate (if `poll_starter_role_id` is set and the presser lacks that role → ephemeral refusal), the Q8 config gate (defense-in-depth — ephemeral list of missing settings; normally unreachable since the init message only appears once required config is complete), and the Q7 duplicate gate, else open modal `ttdb:create:<type>`:
+- [X] `src/features/pollCreate.js` — on `ttdb:start:*`: check the Q6 starter-role gate (if `poll_starter_role_id` is set and the presser lacks that role → ephemeral refusal), the Q8 config gate (defense-in-depth — ephemeral list of missing settings; normally unreachable since the init message only appears once required config is complete), and the Q7 duplicate gate, else open modal `ttdb:create:<type>`:
   - **Text Display**: "This starts an anonymous poll in this channel, open to everyone on the server. Nobody can see how anyone voted. The poll closes after the duration you pick, rounded up to the next hour on the clock — or as soon as everyone on the server has voted. When it closes, results are tallied (current settings: a **Hard no** counts as `<hard-no-weight>`; passing requires `<threshold: N votes | N% of members>`) and the outcome is DM'd to you. ⚠️ A shorter poll may reach a result quicker, but leaves less time for everyone to see it and vote — avoid shorter durations unless there is a real reason for urgency."
   - Invite type: **Text Input** `name` (label "Who should we invite?", max 80 chars)
   - Permanence type: **Channel Select** `channel` (text channels only)
   - Both: **String Select** `duration` — options 3/5/7/14/30 days (7 = default-selected); with `TTDB_TEST_MODE=1`, extra options "5 minutes (TESTING ONLY)" / "30 minutes (TESTING ONLY)"
   - Fallback if any modal component is rejected at runtime: D4's ephemeral-panel flow
-- [ ] Tests: modal/duration builders (default marked, test-mode additions), config-gate + starter-role-gate + duplicate-gate logic
+- [X] Tests: modal/duration builders (default marked, test-mode additions), config-gate + starter-role-gate + duplicate-gate logic. (Deviation: the Q7 duplicate gate runs at modal *submit*, not button press — the subject isn't known until then.)
 
 ### 3.2 Poll message
 
-- [ ] On modal submit: validate subject (name trimmed, 1–80 chars; channel is a text channel not already in the permanent category), compute `closes_at = roundUpToNextHour(created_at + duration)` (`src/util/time.js`; epoch-hour ceiling, exact-hour values unchanged; with `TTDB_TEST_MODE=1` round up to the next minute instead), insert poll row, post to the poll channel: content `@everyone` with `allowedMentions: { parse: ['everyone'] }`, embed showing **only**: who initiated, what the poll is about ("Should we invite **{name}** to the server?" / "Should {#channel} be made permanent?"), responded count, not-yet-responded count, closes `<t:…:R>` — plus one **Vote / change my vote** button (`ttdb:vote:<pollId>`). Store `message_id`. Reply ephemerally to the initiator with a link to the poll.
-- [ ] Eligible-voter helper `src/features/eligibility.js`: fetch members, count non-bots (per Q2), cache 60 s per guild
-- [ ] Tests: embed renderer (pure: poll row + counts → embed fields), subject sanitation (a name of `@everyone`/`<@123>` renders inert), `roundUpToNextHour` (mid-hour rounds up; exact hour unchanged; test-mode minute rounding)
+- [X] On modal submit: validate subject (name trimmed, 1–80 chars; channel is a text channel not already in the permanent category), compute `closes_at = roundUpToNextHour(created_at + duration)` (`src/util/time.js`; epoch-hour ceiling, exact-hour values unchanged; with `TTDB_TEST_MODE=1` round up to the next minute instead), insert poll row, post to the poll channel: content `@everyone` with `allowedMentions: { parse: ['everyone'] }`, embed showing **only**: who initiated, what the poll is about ("Should we invite **{name}** to the server?" / "Should {#channel} be made permanent?"), responded count, not-yet-responded count, closes `<t:…:R>` — plus one **Vote / change my vote** button (`ttdb:vote:<pollId>`). Store `message_id`. Reply ephemerally to the initiator with a link to the poll.
+- [X] Eligible-voter helper `src/features/eligibility.js`: fetch members, count non-bots (per Q2), cache 60 s per guild
+- [X] Tests: embed renderer (pure: poll row + counts → embed fields), subject sanitation (a name of `@everyone`/`<@123>` renders inert), `roundUpToNextHour` (mid-hour rounds up; exact hour unchanged; test-mode minute rounding)
 
 ### 3.3 Ephemeral ballot
 
-- [ ] `src/features/ballot.js` — `ttdb:vote:<pollId>`: ephemeral reply showing "Your current vote: **X**" (or "You haven't voted yet") + four buttons `ttdb:cast:<pollId>:<choice>` labeled per Q1 wording ("Yes!" / "No, I'd rather not invite them, but I won't object if enough people want to" / "Hard no, I really don't want this" / "I abstain from voting"); votes may be changed until close; casting updates the ephemeral message in place and refreshes the public counts (throttled: at most one embed edit per poll per 5 s)
-- [ ] Closed/unknown poll → ephemeral "this poll has closed"
-- [ ] After every cast: if `countVoters(pollId) >= eligibleCount`, trigger the close pipeline immediately (everyone-voted early close)
-- [ ] Tests: cast/change/upsert flows, throttle logic, early-close trigger condition
-- [ ] README: "Starting a poll" + "Voting and privacy" (what's public, what's private, changing your vote, early close). Commit `feat: poll creation and anonymous voting` + push
+- [X] `src/features/ballot.js` — `ttdb:vote:<pollId>`: ephemeral reply showing "Your current vote: **X**" (or "You haven't voted yet") + four buttons `ttdb:cast:<pollId>:<choice>` labeled per Q1 wording ("Yes!" / "No, I'd rather not invite them, but I won't object if enough people want to" / "Hard no, I really don't want this" / "I abstain from voting"); votes may be changed until close; casting updates the ephemeral message in place and refreshes the public counts (throttled: at most one embed edit per poll per 5 s)
+- [X] Closed/unknown poll → ephemeral "this poll has closed"
+- [X] After every cast: if `countVoters(pollId) >= eligibleCount`, trigger the close pipeline immediately (everyone-voted early close)
+- [X] Tests: cast/change/upsert flows, throttle logic, early-close trigger condition
+- [X] README: "Starting a poll" + "Voting and privacy" (what's public, what's private, changing your vote, early close). Commit `feat: poll creation and anonymous voting` + push
 
 ## Phase 4 — Closing engine
 

@@ -1,0 +1,208 @@
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { MessageFlags } from 'discord.js';
+import {
+  buildCreateModal,
+  extractModalValues,
+  handleCreateModal,
+  handleStartButton,
+} from '../../src/features/pollCreate.js';
+import { setConfig } from '../../src/store/guildConfig.js';
+import { createPoll, getPoll, listOpen } from '../../src/store/polls.js';
+import { clearEligibilityCache } from '../../src/features/eligibility.js';
+import { tempDb } from '../store/helpers.js';
+
+const FULL_CONFIG = {
+  poll_channel_id: 'chan-poll',
+  hard_no_weight: 'veto',
+  threshold_type: 'count',
+  threshold_value: 3,
+  permanent_category_id: 'cat-1',
+};
+
+function fakeGuild() {
+  const sent = [];
+  const pollChannel = {
+    id: 'chan-poll',
+    sent,
+    send: async (payload) => {
+      sent.push(payload);
+      return { id: `msg-${sent.length}` };
+    },
+  };
+  const targetChannel = { id: 'chan-target', parentId: null };
+  const inCategory = { id: 'chan-owned', parentId: 'cat-1' };
+  const byId = new Map([
+    ['chan-poll', pollChannel],
+    ['chan-target', targetChannel],
+    ['chan-owned', inCategory],
+  ]);
+  return {
+    id: 'g1',
+    pollChannel,
+    channels: {
+      fetch: async (id) => {
+        const found = byId.get(id);
+        if (!found) throw new Error('Unknown Channel');
+        return found;
+      },
+    },
+    members: {
+      fetch: async () => new Map([['u1', { user: { bot: false } }], ['u2', { user: { bot: false } }]]),
+    },
+  };
+}
+
+function fakeInteraction({ guild, hasRole = true, values = {} } = {}) {
+  const shown = [];
+  const replies = [];
+  return {
+    guildId: 'g1',
+    guild,
+    user: { id: 'u1' },
+    member: { roles: { cache: { has: () => hasRole } } },
+    shown,
+    replies,
+    // modal-submit values arrive as label-wrapped components
+    components: Object.entries(values).map(([id, value]) => ({
+      component: Array.isArray(value)
+        ? { custom_id: id, values: value }
+        : { custom_id: id, value },
+    })),
+    showModal: async (payload) => shown.push(payload),
+    reply: async (payload) => replies.push(payload),
+  };
+}
+
+test('buildCreateModal (invite) carries explanation, name input, and duration select with default', () => {
+  const modal = buildCreateModal('invite', { ...FULL_CONFIG }, false);
+  assert.equal(modal.custom_id, 'ttdb:create:invite');
+  const textDisplay = modal.components.find((c) => c.type === 10);
+  assert.match(textDisplay.content, /anonymous/i);
+  assert.match(textDisplay.content, /veto/);
+  assert.match(textDisplay.content, /3 vote total/);
+  assert.match(textDisplay.content, /avoid shorter durations/i);
+  const name = modal.components.find((c) => c.component?.custom_id === 'name');
+  assert.equal(name.component.type, 4);
+  assert.equal(name.component.max_length, 80);
+  const duration = modal.components.find((c) => c.component?.custom_id === 'duration');
+  assert.equal(duration.component.type, 3);
+  assert.equal(duration.component.options.find((o) => o.default).value, '604800');
+});
+
+test('buildCreateModal (permchan) uses a text-channel select', () => {
+  const modal = buildCreateModal('permchan', { ...FULL_CONFIG }, false);
+  assert.equal(modal.custom_id, 'ttdb:create:permchan');
+  const channel = modal.components.find((c) => c.component?.custom_id === 'channel');
+  assert.equal(channel.component.type, 8);
+  assert.deepEqual(channel.component.channel_types, [0]);
+});
+
+test('extractModalValues reads text values and select value arrays from nested shapes', () => {
+  const values = extractModalValues({
+    components: [
+      { component: { custom_id: 'name', value: ' Ada ' } },
+      { component: { custom_id: 'duration', values: ['604800'] } },
+      { components: [{ custom_id: 'extra', value: 'nested-row' }] },
+    ],
+  });
+  assert.deepEqual(values, { name: ' Ada ', duration: ['604800'], extra: 'nested-row' });
+});
+
+test('start button refuses while required config is missing', async (t) => {
+  const db = tempDb(t);
+  const interaction = fakeInteraction({ guild: fakeGuild() });
+  await handleStartButton({ db }, interaction, ['invite']);
+  assert.equal(interaction.shown.length, 0);
+  assert.match(interaction.replies[0].content, /ttdb-config/);
+  assert.equal(interaction.replies[0].flags, MessageFlags.Ephemeral);
+});
+
+test('start button enforces the poll-starter role when configured', async (t) => {
+  const db = tempDb(t);
+  setConfig(db, 'g1', { ...FULL_CONFIG, poll_starter_role_id: 'role-1' });
+  const refused = fakeInteraction({ guild: fakeGuild(), hasRole: false });
+  await handleStartButton({ db }, refused, ['invite']);
+  assert.equal(refused.shown.length, 0);
+  assert.match(refused.replies[0].content, /<@&role-1>/);
+
+  const allowed = fakeInteraction({ guild: fakeGuild(), hasRole: true });
+  await handleStartButton({ db }, allowed, ['invite']);
+  assert.equal(allowed.shown.length, 1);
+});
+
+test('invite modal submit creates the poll, posts @everyone message, stores rounded close time', async (t) => {
+  clearEligibilityCache();
+  const db = tempDb(t);
+  setConfig(db, 'g1', FULL_CONFIG);
+  const guild = fakeGuild();
+  const interaction = fakeInteraction({
+    guild,
+    values: { name: '  Ada   Lovelace ', duration: ['259200'] },
+  });
+  const now = 1_000; // raw close = 259_201_000 → next hour boundary = 262_800_000
+  await handleCreateModal({ db, now: () => now }, interaction, ['invite']);
+
+  const [poll] = listOpen(db, 'g1');
+  assert.equal(poll.subject, 'Ada Lovelace', 'whitespace collapsed');
+  assert.equal(poll.closes_at, 262_800_000);
+  assert.equal(poll.message_id, 'msg-1');
+  assert.equal(guild.pollChannel.sent[0].content, '@everyone');
+  assert.match(interaction.replies[0].content, /discord\.com\/channels\/g1\/chan-poll\/msg-1/);
+});
+
+test('a duplicate open poll for the same person is refused (case-insensitive)', async (t) => {
+  const db = tempDb(t);
+  setConfig(db, 'g1', FULL_CONFIG);
+  createPoll(db, {
+    guildId: 'g1',
+    type: 'invite',
+    subject: 'Ada Lovelace',
+    initiatorId: 'u9',
+    channelId: 'chan-poll',
+    closesAt: 9_000_000_000,
+  });
+  const interaction = fakeInteraction({
+    guild: fakeGuild(),
+    values: { name: 'ada lovelace', duration: ['259200'] },
+  });
+  await handleCreateModal({ db }, interaction, ['invite']);
+
+  assert.equal(listOpen(db, 'g1').length, 1, 'no second poll created');
+  assert.match(interaction.replies[0].content, /already an open poll/i);
+});
+
+test('permchan modal submit stores the channel id and refuses channels already in the category', async (t) => {
+  clearEligibilityCache();
+  const db = tempDb(t);
+  setConfig(db, 'g1', FULL_CONFIG);
+
+  const refused = fakeInteraction({
+    guild: fakeGuild(),
+    values: { channel: ['chan-owned'], duration: ['604800'] },
+  });
+  await handleCreateModal({ db }, refused, ['permchan']);
+  assert.match(refused.replies[0].content, /already/i);
+  assert.equal(listOpen(db, 'g1').length, 0);
+
+  const ok = fakeInteraction({
+    guild: fakeGuild(),
+    values: { channel: ['chan-target'], duration: ['604800'] },
+  });
+  await handleCreateModal({ db, now: () => 0 }, ok, ['permchan']);
+  const [poll] = listOpen(db, 'g1');
+  assert.equal(poll.type, 'permanent_channel');
+  assert.equal(poll.subject, 'chan-target');
+});
+
+test('invalid duration values are refused', async (t) => {
+  const db = tempDb(t);
+  setConfig(db, 'g1', FULL_CONFIG);
+  const interaction = fakeInteraction({
+    guild: fakeGuild(),
+    values: { name: 'Ada', duration: ['12345'] },
+  });
+  await handleCreateModal({ db }, interaction, ['invite']);
+  assert.equal(listOpen(db, 'g1').length, 0);
+  assert.match(interaction.replies[0].content, /duration/i);
+});
