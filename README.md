@@ -83,3 +83,23 @@ Never commit secrets.
 | `TTDB_DB_PATH` | no | SQLite database location. Default: `./data/the-the.sqlite3`. |
 | `TTDB_TEST_MODE` | no | Set to `1` to enable short "TESTING ONLY" poll durations and minute-level sweeps. Never use on a real server. |
 | `TTDB_GUILD_ID` | no | If set, slash commands are registered guild-scoped (instant) instead of globally (~1 h to propagate). |
+
+Note: `$env:` variables only live as long as that PowerShell window. If you
+open a new window, set them again — or keep them in the gitignored `.env`.
+
+## Troubleshooting
+
+### `npm : File ...\npm.ps1 cannot be loaded because running scripts is disabled`
+
+PowerShell's default execution policy (`Restricted`) blocks npm's PowerShell
+shim. Fix it once for your user account (no admin needed, takes effect
+immediately):
+
+```powershell
+Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser -Force
+```
+
+`RemoteSigned` allows locally installed scripts (like npm's shim) while
+still requiring signatures on scripts downloaded from the internet. If you
+prefer not to change the policy, call the cmd shim instead, which skips the
+`.ps1` file entirely: `npm.cmd run <script>`.
