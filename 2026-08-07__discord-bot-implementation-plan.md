@@ -130,7 +130,7 @@ Native Windows Task Scheduler logon-trigger task: no third-party binary (NSSM) o
 
 ### 2.1 Database layer (TDD against a temp db file)
 
-- [ ] `src/db.js`: opens `node:sqlite` `DatabaseSync` at `TTDB_DB_PATH` (mkdir -p its folder), runs idempotent migrations:
+- [X] `src/db.js`: opens `node:sqlite` `DatabaseSync` at `TTDB_DB_PATH` (mkdir -p its folder), runs idempotent migrations (implemented as `openDb(path)`; the Phase 2.3 wiring passes `env.dbPath`):
   ```sql
   CREATE TABLE IF NOT EXISTS guild_config (
     guild_id TEXT PRIMARY KEY,
@@ -156,9 +156,9 @@ Native Windows Task Scheduler logon-trigger task: no third-party binary (NSSM) o
     updated_at INTEGER NOT NULL,
     PRIMARY KEY (poll_id, user_id));
   ```
-- [ ] `src/store/guildConfig.js` (`getConfig(guildId)`, `setConfig(guildId, patch)`), `src/store/polls.js` (`createPoll`, `getPoll`, `setMessageId`, `listDue(now)`, `listOpen(guildId)`, `closePoll(id, status, vetoCount)`), `src/store/votes.js` (`castVote(pollId, userId, choice)` upsert, `getVote`, `countByChoice(pollId)`, `countVoters(pollId)`, `deleteVotes(pollId)`)
-- [ ] Tests first for each store module (`test/store/*.test.js`, temp db per test); run red → implement → green
-- [ ] Commit `feat: sqlite storage layer` + push
+- [X] `src/store/guildConfig.js` (`getConfig(guildId)`, `setConfig(guildId, patch)`), `src/store/polls.js` (`createPoll`, `getPoll`, `setMessageId`, `listDue(now)`, `listOpen(guildId)`, `closePoll(id, status, vetoCount)`), `src/store/votes.js` (`castVote(pollId, userId, choice)` upsert, `getVote`, `countByChoice(pollId)`, `countVoters(pollId)`, `deleteVotes(pollId)`) — all store functions take the open db handle as their first argument; `votes.js` also exports `CHOICES`
+- [X] Tests first for each store module (`test/store/*.test.js`, temp db per test); run red → implement → green
+- [X] Commit `feat: sqlite storage layer` + push
 
 ### 2.2 `/ttdb-config` slash commands
 
