@@ -113,7 +113,7 @@ Native Windows Task Scheduler logon-trigger task: no third-party binary (NSSM) o
 
 ### 1.2 Human: portal setup and first login
 
-- [ ] `[HUMAN]` In https://discord.com/developers/applications → **New Application** (suggested name: "The The Bot") → **Bot** tab → toggle ON **SERVER MEMBERS INTENT** (required to know who has/hasn't voted) → **Reset Token** → copy it once. On **General Information**, copy the **Application ID**. Then in the PowerShell window you'll run the bot from (session-only, value never shown to the agent):
+- [ ] `[HUMAN]` In https://discord.com/developers/applications → **New Application** (suggested name: "The The Bot") → **Bot** tab → toggle OFF **Public Bot** (restricts installs to the app owner — the install URL is derivable from the public Application ID, so this toggle is the real access control) → toggle ON **SERVER MEMBERS INTENT** (required to know who has/hasn't voted) → **Reset Token** → copy it once. On **General Information**, copy the **Application ID**. Then in the PowerShell window you'll run the bot from (session-only, value never shown to the agent):
   ```powershell
   $env:DISCORD_TOKEN = '<paste-token-here>'
   $env:DISCORD_APP_ID = '<paste-application-id-here>'
@@ -121,7 +121,9 @@ Native Windows Task Scheduler logon-trigger task: no third-party binary (NSSM) o
   (Optional alternative: put the same two lines as `KEY=value` in a gitignored `.env` and run scripts with `node --env-file=.env …`.)
 - [ ] `[HUMAN]` Run `npm run health-check` in that window
 - [ ] Agent: read `logs/<ts>__health-check/run.log`, confirm login + intent OK, then **delete** the `logs/<ts>__health-check/` folder
-- [ ] `[HUMAN]` Run `npm run invite-url`, open the printed URL, pick your server, **Authorize** (OAuth grants are human-only)
+- [ ] `[HUMAN]` Run `npm run invite-url`, open the printed URL, pick your server, **Authorize** (OAuth grants are human-only; with Public Bot OFF this works only for you, the app owner)
+
+*(Server access control decided 2026-08-07: **Public Bot OFF** is the chosen mechanism. A code-level guild allowlist — auto-leaving unlisted servers — was considered and declined.)*
 
 ## Phase 2 — Storage, `/ttdb-config`, and the init message
 

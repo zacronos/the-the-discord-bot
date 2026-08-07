@@ -11,9 +11,12 @@ channel become permanent?"), with per-server configurable counting rules.
 
 1. Go to <https://discord.com/developers/applications> and press **New
    Application** (suggested name: "The The Bot").
-2. Open the **Bot** tab and, under *Privileged Gateway Intents*, toggle ON
-   **SERVER MEMBERS INTENT**. The bot needs it to know who has and hasn't
-   voted (for early poll closes and percent-based thresholds).
+2. Open the **Bot** tab and set two toggles: turn OFF **Public Bot**, so
+   only you (the application owner) can add the bot to servers — anyone can
+   derive the install URL from the public Application ID, so this toggle is
+   the real access control. Then, under *Privileged Gateway Intents*, toggle
+   ON **SERVER MEMBERS INTENT** — the bot needs it to know who has and
+   hasn't voted (for early poll closes and percent-based thresholds).
 3. Still on the **Bot** tab, press **Reset Token** and copy the token.
 4. On **General Information**, copy the **Application ID**.
 5. In the shell you'll run the bot from, set both values (session-only;
@@ -43,7 +46,9 @@ channel become permanent?"), with per-server configurable counting rules.
 npm run invite-url
 ```
 
-Open the printed URL, pick your server, and press **Authorize**. The URL
+Open the printed URL, pick your server, and press **Authorize**. With
+**Public Bot** turned off, only you (the application owner) can complete
+this step, so the bot cannot end up on servers you didn't choose. The URL
 requests the `bot` and `applications.commands` scopes plus exactly the
 permissions the bot needs:
 
