@@ -174,8 +174,8 @@ Native Windows Task Scheduler logon-trigger task: no third-party binary (NSSM) o
 - [X] Tests for the validation/formatting logic (command *handlers* as pure functions taking a fake interaction; no live Discord)
 - [X] `scripts/register-commands.mjs`: registers the command definitions via REST; guild-scoped to `TTDB_GUILD_ID` when set (instant), global otherwise (~1 h propagation). Redacted run log to `logs/<ts>__register-commands/run.log`. (Shared redacted-log helper extracted to `scripts/script-log.mjs`; health-check refactored onto it.)
 - [X] README: "Configuring the bot" — every subcommand, what it controls, and that polls refuse to start until required settings exist (Q8 default). Commit `feat: per-server configuration commands` + push
-- [ ] `[HUMAN]` In the env-var PowerShell window: `$env:TTDB_GUILD_ID = '<your-server-id>'` (right-click server icon → Copy Server ID, with Developer Mode on) then `npm run register-commands`
-- [ ] Agent: verify + delete `logs/<ts>__register-commands/`
+- [X] `[HUMAN]` In the env-var PowerShell window: `$env:TTDB_GUILD_ID = '<your-server-id>'` (right-click server icon → Copy Server ID, with Developer Mode on) then `npm run register-commands`
+- [X] Agent: verify + delete `logs/<ts>__register-commands/` (verified 2026-08-07: `/ttdb-config` registered guild-scoped OK. The run then crashed at exit with a Windows libuv assertion — harmless to the registration; scripts fixed to exit naturally via `process.exitCode` + undici agent close instead of `process.exit()`.)
 
 ### 2.3 Init message with feature buttons
 

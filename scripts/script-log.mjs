@@ -20,7 +20,22 @@ export function makeScriptLog(name) {
     mkdirSync(logDir, { recursive: true });
     writeFileSync(join(logDir, 'run.log'), lines.join('\n') + '\n');
     console.log(`(log written to ${logDir})`);
-    process.exit(code);
+    // Set the exit code and let the process end naturally. Calling
+    // process.exit() here races libuv handle teardown on Windows:
+    // "Assertion failed: !(handle->flags & UV_HANDLE_CLOSING), src\win\async.c".
+    process.exitCode = code;
   };
   return { say, finish, scrub, setSecret: (value) => (secret = value) };
+}
+
+// Closes undici's global HTTP agent (discord.js REST uses it) so the process
+// can exit promptly instead of waiting out keep-alive sockets.
+export async function closeHttpAgent() {
+  try {
+    const { getGlobalDispatcher } = await import('undici');
+    await getGlobalDispatcher().close();
+  } catch {
+    // undici unavailable or already closed; natural exit still works, it
+    // just may take a few seconds longer.
+  }
 }

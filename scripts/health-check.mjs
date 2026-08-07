@@ -4,7 +4,7 @@
 // REDACTED -- the token is never printed or written to the log.
 import { Client, Events, GatewayIntentBits } from 'discord.js';
 import { loadEnv } from '../src/env.js';
-import { makeScriptLog } from './script-log.mjs';
+import { closeHttpAgent, makeScriptLog } from './script-log.mjs';
 
 const { say, finish, scrub, setSecret } = makeScriptLog('health-check');
 
@@ -31,11 +31,12 @@ const HINTS = [
   ],
 ];
 
+let client = null;
 try {
   const env = loadEnv();
   setSecret(env.token);
 
-  const client = new Client({
+  client = new Client({
     intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMembers],
   });
   const ready = new Promise((resolve) => client.once(Events.ClientReady, resolve));
@@ -61,11 +62,18 @@ try {
   }
 
   await client.destroy();
+  await closeHttpAgent();
   finish(0);
 } catch (err) {
   const msg = scrub(err?.message ?? err);
   say(`FAIL: ${msg}`);
   const hint = HINTS.find(([needle]) => msg.toLowerCase().includes(needle));
   if (hint) say(`HINT: ${hint[1]}`);
+  try {
+    await client?.destroy();
+  } catch {
+    // best-effort teardown on the failure path
+  }
+  await closeHttpAgent();
   finish(1);
 }

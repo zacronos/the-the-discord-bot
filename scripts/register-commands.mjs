@@ -6,7 +6,7 @@
 import { REST, Routes } from 'discord.js';
 import { loadEnv } from '../src/env.js';
 import { configCommandDefinition } from '../src/features/configCommands.js';
-import { makeScriptLog } from './script-log.mjs';
+import { closeHttpAgent, makeScriptLog } from './script-log.mjs';
 
 const { say, finish, scrub, setSecret } = makeScriptLog('register-commands');
 
@@ -49,11 +49,13 @@ try {
 
   say(`OK: registered ${result.length} command(s) -- scope: ${scopeNote}`);
   for (const command of result) say(`  - /${command.name}`);
+  await closeHttpAgent();
   finish(0);
 } catch (err) {
   const msg = scrub(err?.message ?? err);
   say(`FAIL: ${msg}`);
   const hint = HINTS.find(([needle]) => msg.toLowerCase().includes(needle));
   if (hint) say(`HINT: ${hint[1]}`);
+  await closeHttpAgent();
   finish(1);
 }
