@@ -145,6 +145,16 @@ system channel if unset). If the bot can't create the link (e.g. missing
 Create Instant Invite permission), the DM still reports the pass and asks
 an admin to create the invite manually.
 
+### Start a vote on making a channel permanent
+
+Asks which text channel should become permanent (channels already in the
+permanent category can't be nominated) and the poll duration. If the poll
+passes, the bot **moves the channel into the configured
+`permanent-category` and syncs its permission overwrites** with that
+category. If the move fails (category deleted, or the bot lacks Manage
+Channels / Manage Roles), the DM still reports the pass with a note asking
+an admin to finish the move manually.
+
 ## How results are decided
 
 A poll closes at its scheduled hour (the bot sweeps once per hour, on the

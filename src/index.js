@@ -8,6 +8,7 @@ import { handleCastButton, handleVoteButton } from './features/ballot.js';
 import { handleConfigCommand } from './features/configCommands.js';
 import { ensureInitMessage } from './features/initMessage.js';
 import { inviteAction } from './features/actions/invite.js';
+import { permanentChannelAction } from './features/actions/permanentChannel.js';
 import { closePollPipeline, handleResendButton } from './features/pollClose.js';
 import { handleCreateModal, handleStartButton } from './features/pollCreate.js';
 import { startScheduler } from './features/scheduler.js';
@@ -16,7 +17,12 @@ const env = loadEnv();
 const db = openDb(env.dbPath);
 const client = createClient();
 
-const ctx = { env, db, client, actions: { invite: inviteAction } };
+const ctx = {
+  env,
+  db,
+  client,
+  actions: { invite: inviteAction, permanent_channel: permanentChannelAction },
+};
 ctx.ensureInitMessage = (guild) => ensureInitMessage(ctx, guild);
 ctx.closeDuePoll = (poll) => closePollPipeline(ctx, poll);
 

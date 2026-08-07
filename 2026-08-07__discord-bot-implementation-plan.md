@@ -247,11 +247,11 @@ Native Windows Task Scheduler logon-trigger task: no third-party binary (NSSM) o
 
 ## Phase 6 — "Make channel permanent" success action
 
-- [ ] `src/features/actions/permanentChannel.js`: on pass — verify configured category still exists, then `channel.setParent(categoryId, { lockPermissions: true, reason: 'Poll <id> passed' })` (moves the channel *and* syncs its permission overwrites with the category, per spec)
-- [ ] Failure paths (category deleted, missing Manage Channels/Manage Roles, channel deleted mid-poll) → success DM still sent with a clear "action needs an admin" note + log
-- [ ] Creation-time guard recap (from 3.2): only text channels, not already in the permanent category
-- [ ] Tests: setParent args include `lockPermissions: true`; each failure path
-- [ ] README: feature walkthrough. Commit `feat: permanent-channel poll action` + push
+- [X] `src/features/actions/permanentChannel.js`: on pass — verify configured category still exists, then `channel.setParent(categoryId, { lockPermissions: true, reason: 'Poll <id> passed' })` (moves the channel *and* syncs its permission overwrites with the category, per spec)
+- [X] Failure paths (category deleted, missing Manage Channels/Manage Roles, channel deleted mid-poll) → success DM still sent with a clear "action needs an admin" note + log (via the pipeline's action-failure note, tested in 4.2)
+- [X] Creation-time guard recap (from 3.2): only text channels, not already in the permanent category
+- [X] Tests: setParent args include `lockPermissions: true`; each failure path
+- [X] README: feature walkthrough. Commit `feat: permanent-channel poll action` + push
 
 ## Phase 7 — Hardening, polish, final docs
 
