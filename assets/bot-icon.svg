@@ -16,16 +16,16 @@
   <ellipse cx="512" cy="800" rx="300" ry="46" fill="#071F25" opacity="0.5"/>
 
   <!-- ears -->
-  <rect x="168" y="464" width="72" height="150" rx="30" fill="#D9CFB6"/>
-  <rect x="784" y="464" width="72" height="150" rx="30" fill="#D9CFB6"/>
+  <rect x="168" y="464" width="72" height="150" rx="30" fill="#A9AEB3"/>
+  <rect x="784" y="464" width="72" height="150" rx="30" fill="#A9AEB3"/>
 
   <!-- antenna -->
-  <rect x="498" y="190" width="28" height="96" rx="14" fill="#D9CFB6"/>
+  <rect x="498" y="190" width="28" height="96" rx="14" fill="#A9AEB3"/>
   <circle cx="512" cy="172" r="42" fill="#F5B54A"/>
   <circle cx="527" cy="158" r="12" fill="#FFFFFF" opacity="0.75"/>
 
   <!-- head -->
-  <rect x="232" y="272" width="560" height="500" rx="118" fill="#F2EDE0"/>
+  <rect x="232" y="272" width="560" height="500" rx="118" fill="#C5C9CC"/>
 
   <!-- visor -->
   <rect x="300" y="398" width="424" height="134" rx="67" fill="#122A31"/>
