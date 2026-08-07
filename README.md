@@ -4,8 +4,19 @@ A Discord bot for running anonymous community polls: invite votes ("should we
 invite this person to the server?") and channel-permanence votes ("should this
 channel become permanent?"), with per-server configurable counting rules.
 
-*(Implementation in progress — see
-[the implementation plan](2026-08-07__discord-bot-implementation-plan.md).)*
+*(Built from [the implementation plan](2026-08-07__discord-bot-implementation-plan.md),
+which also records every design decision.)*
+
+## Quick start (server owner)
+
+1. [Create your Discord application](#creating-your-discord-application) —
+   portal setup, token, intents.
+2. [Invite the bot to your server](#inviting-the-bot-to-a-server).
+3. [Register the slash commands and configure](#configuring-the-bot) with
+   `/ttdb-config` — polls unlock once the four required settings are set.
+4. Run the bot: `npm start` in a shell with the env vars set (or
+   `node --env-file=.env src/index.js`), or set up
+   [auto-start on Windows](#running-on-startup-windows).
 
 ## Creating your Discord application
 
@@ -133,6 +144,12 @@ from voting*. Your ballot shows your current vote, and you can change it
 any time until the poll closes. The poll closes at its scheduled hour — or
 immediately, once every (non-bot) member of the server has voted.
 
+**An honest note on anonymity:** votes are anonymous to everyone on
+Discord, including server admins and the poll initiator. However, whoever
+runs the bot host can technically read the bot's local database while a
+poll is open. Individual votes are erased the moment a poll closes; only
+the outcome is kept.
+
 ## Poll types
 
 ### Start a vote on inviting someone
@@ -234,3 +251,23 @@ Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser -Force
 still requiring signatures on scripts downloaded from the internet. If you
 prefer not to change the policy, call the cmd shim instead, which skips the
 `.ps1` file entirely: `npm.cmd run <script>`.
+
+### `/ttdb-config` doesn't appear in Discord
+
+Run `npm run register-commands`. With `TTDB_GUILD_ID` set the commands are
+guild-scoped and appear instantly; without it they're global and can take
+up to an hour. Also confirm the bot was invited with the
+`applications.commands` scope (the `npm run invite-url` link includes it).
+
+### The bot exits immediately with "Used disallowed intents"
+
+Enable **SERVER MEMBERS INTENT**: Developer Portal → your app → Bot →
+Privileged Gateway Intents. `npm run health-check` diagnoses this.
+
+### Votes aren't being collected / a poll didn't close on time
+
+The bot only collects votes and closes polls while its process is running.
+After downtime, the next startup (or the next hourly sweep) closes any
+polls that came due in the meantime. On startup the bot also logs a
+permission audit — check the console/log for lines starting with
+`[ttdb] permission audit`.

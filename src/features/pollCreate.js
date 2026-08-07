@@ -109,7 +109,12 @@ export async function handleStartButton(ctx, interaction, [typePart]) {
   await interaction.showModal(buildCreateModal(typePart, cfg, ctx.env?.testMode));
 }
 
-const collapseWhitespace = (text) => String(text ?? '').replaceAll(/\s+/g, ' ').trim();
+// 7.5 input hygiene: strip control/invisible characters, collapse whitespace.
+const collapseWhitespace = (text) =>
+  String(text ?? '')
+    .replaceAll(/[\p{Cc}\p{Cf}]/gu, '')
+    .replaceAll(/\s+/g, ' ')
+    .trim();
 const first = (value) => (Array.isArray(value) ? value[0] : value);
 const duplicateKey = (type, subject) => (type === 'invite' ? subject.toLowerCase() : subject);
 

@@ -4,7 +4,7 @@ import { ActionRowBuilder, ButtonBuilder, ButtonStyle, MessageFlags } from 'disc
 import { buildId } from '../discord/customId.js';
 import { tallyPoll } from '../polls/tally.js';
 import { getConfig } from '../store/guildConfig.js';
-import { claimForClose, closePoll, getPoll } from '../store/polls.js';
+import { claimForClose, closePoll, getPoll, listOpen } from '../store/polls.js';
 import {
   countByChoice,
   deleteVote,
@@ -153,6 +153,13 @@ export async function abortPoll(ctx, poll, reason) {
     `Your poll about ${describePoll(poll)} was cancelled because ${reason}. You can start a new one from the poll channel.`
   );
   return true;
+}
+
+// 7.3: the bot was removed from a guild — its open polls can never conclude.
+export async function handleGuildLeave(ctx, guild) {
+  for (const poll of listOpen(ctx.db, guild.id)) {
+    await abortPoll(ctx, poll, 'the bot was removed from the server');
+  }
 }
 
 // Q4: the fallback notice's button — usable only by the initiator; replays

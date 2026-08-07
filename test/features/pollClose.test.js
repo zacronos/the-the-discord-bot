@@ -4,6 +4,7 @@ import {
   abortPoll,
   buildResultDm,
   closePollPipeline,
+  handleGuildLeave,
   handleResendButton,
 } from '../../src/features/pollClose.js';
 import { setConfig } from '../../src/store/guildConfig.js';
@@ -199,6 +200,22 @@ test('abortPoll cancels an open poll and tells the initiator why', async (t) => 
   const initiator = dms.find((d) => d.userId === 'u1');
   assert.match(initiator.content, /cancelled/);
   assert.match(initiator.content, /its message was deleted/);
+});
+
+test('leaving a guild aborts all of its open polls (7.3)', async (t) => {
+  const { db, ctx, poll } = makeWorld(t);
+  const second = createPoll(db, {
+    guildId: 'g1',
+    type: 'permanent_channel',
+    subject: 'chan-x',
+    initiatorId: 'u2',
+    channelId: 'chan-poll',
+    closesAt: 5_000,
+  });
+
+  await handleGuildLeave(ctx, { id: 'g1' });
+  assert.equal(getPoll(db, poll.id).status, 'aborted');
+  assert.equal(getPoll(db, second.id).status, 'aborted');
 });
 
 test('buildResultDm names the poll subject in every outcome', () => {

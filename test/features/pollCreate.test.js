@@ -146,6 +146,31 @@ test('invite modal submit creates the poll, posts @everyone message, stores roun
   const [poll] = listOpen(db, 'g1');
   assert.equal(poll.subject, 'Ada Lovelace', 'whitespace collapsed');
   assert.equal(poll.closes_at, 262_800_000);
+});
+
+test('control and zero-width characters are stripped from names (7.5)', async (t) => {
+  clearEligibilityCache();
+  const db = tempDb(t);
+  setConfig(db, 'g1', FULL_CONFIG);
+  const interaction = fakeInteraction({
+    guild: fakeGuild(),
+    values: { name: 'A​da Lovelace', duration: ['259200'] },
+  });
+  await handleCreateModal({ db, now: () => 0 }, interaction, ['invite']);
+  const [poll] = listOpen(db, 'g1');
+  assert.equal(poll.subject, 'Ada Lovelace');
+});
+
+test('invite modal closes-at rounding sanity (moved assertion)', async (t) => {
+  clearEligibilityCache();
+  const db = tempDb(t);
+  setConfig(db, 'g1', FULL_CONFIG);
+  const guild = fakeGuild();
+  const interaction = fakeInteraction({ guild, values: { name: 'Grace', duration: ['259200'] } });
+  const now = 1_000;
+  await handleCreateModal({ db, now: () => now }, interaction, ['invite']);
+  const poll = listOpen(db, 'g1').find((p) => p.subject === 'Grace');
+  assert.equal(poll.closes_at, 262_800_000);
   assert.equal(poll.message_id, 'msg-1');
   assert.equal(guild.pollChannel.sent[0].content, '@everyone');
   assert.match(interaction.replies[0].content, /discord\.com\/channels\/g1\/chan-poll\/msg-1/);

@@ -9,7 +9,8 @@ import { handleConfigCommand } from './features/configCommands.js';
 import { ensureInitMessage } from './features/initMessage.js';
 import { inviteAction } from './features/actions/invite.js';
 import { permanentChannelAction } from './features/actions/permanentChannel.js';
-import { closePollPipeline, handleResendButton } from './features/pollClose.js';
+import { auditGuildPermissions } from './features/audit.js';
+import { closePollPipeline, handleGuildLeave, handleResendButton } from './features/pollClose.js';
 import { handleCreateModal, handleStartButton } from './features/pollCreate.js';
 import { startScheduler } from './features/scheduler.js';
 
@@ -44,9 +45,21 @@ client.once(Events.ClientReady, async () => {
     } catch (err) {
       console.error(`[ttdb] init message for guild ${guild.id}: ${err.message}`);
     }
+    try {
+      const problems = await auditGuildPermissions(ctx, guild);
+      for (const problem of problems) {
+        console.warn(`[ttdb] permission audit (${guild.name ?? guild.id}): ${problem}`);
+      }
+    } catch (err) {
+      console.error(`[ttdb] permission audit for guild ${guild.id}: ${err.message}`);
+    }
   }
   startScheduler(ctx);
 });
+
+client.on(Events.GuildDelete, (guild) =>
+  handleGuildLeave(ctx, guild).catch((err) => console.error('[ttdb] guild-leave cleanup:', err))
+);
 
 process.on('unhandledRejection', (err) => {
   console.error('[ttdb] unhandled rejection:', err);

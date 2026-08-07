@@ -255,13 +255,13 @@ Native Windows Task Scheduler logon-trigger task: no third-party binary (NSSM) o
 
 ## Phase 7 — Hardening, polish, final docs
 
-- [ ] Global interaction error handler: ephemeral "Something went wrong — the details were logged." + console log; process-level `unhandledRejection` logging
-- [ ] Startup permission audit per configured guild: log any missing channel/category permissions in one readable block
-- [ ] Guild-leave cleanup: open polls in that guild → `aborted`
-- [ ] Input hygiene sweep: every render of user-supplied text (names) uses `allowedMentions: { parse: [] }` or embed-only placement; name length limits enforced server-side
-- [ ] Final README pass: intro, feature list, invite+configure quick-start (top of file), self-hosting guide (env var names, `npm start`, data file location/backup), privacy notes (D2 honesty note), troubleshooting (missing intent, missing permissions, commands not appearing)
-- [ ] Delete any remaining analyzed `logs/<ts>__*` folders
-- [ ] Final `npm test` green; commit `chore: hardening and final docs` + push; verify remote `main` matches local (`git status` clean, `git log origin/main..main` empty)
+- [X] Global interaction error handler: ephemeral "Something went wrong — the details were logged." + console log; process-level `unhandledRejection` logging (built with the router in 2.3; unhandledRejection logging in index.js)
+- [X] Startup permission audit per configured guild: log any missing channel/category permissions in one readable block
+- [X] Guild-leave cleanup: open polls in that guild → `aborted`
+- [X] Input hygiene sweep: every render of user-supplied text (names) uses `allowedMentions: { parse: [] }` or embed-only placement; name length limits enforced server-side; control/zero-width characters stripped
+- [X] Final README pass: intro, feature list, invite+configure quick-start (top of file), self-hosting guide (env var names, `npm start`, data file location/backup), privacy notes (D2 honesty note), troubleshooting (missing intent, missing permissions, commands not appearing)
+- [X] Delete any remaining analyzed `logs/<ts>__*` folders (verified empty)
+- [X] Final `npm test` green; commit `chore: hardening and final docs` + push; verify remote `main` matches local (`git status` clean, `git log origin/main..main` empty)
 
 ## Phase 8 — Auto-start on this machine (Q9 / D7)
 
