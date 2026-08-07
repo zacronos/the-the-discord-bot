@@ -2,30 +2,11 @@
 // Health check: verifies that DISCORD_TOKEN works and that the required
 // gateway intents (Guilds + GuildMembers) are enabled for the app. Output is
 // REDACTED -- the token is never printed or written to the log.
-import { mkdirSync, writeFileSync } from 'node:fs';
-import { join } from 'node:path';
 import { Client, Events, GatewayIntentBits } from 'discord.js';
 import { loadEnv } from '../src/env.js';
+import { makeScriptLog } from './script-log.mjs';
 
-const lines = [];
-let token = null;
-const scrub = (value) => {
-  const text = String(value);
-  return token ? text.split(token).join('[REDACTED]') : text;
-};
-const say = (line) => {
-  lines.push(scrub(line));
-  console.log(scrub(line));
-};
-
-const ts = new Date().toISOString().slice(0, 19).replaceAll(':', '-');
-const logDir = join('logs', `${ts}__health-check`);
-const finish = (code) => {
-  mkdirSync(logDir, { recursive: true });
-  writeFileSync(join(logDir, 'run.log'), lines.join('\n') + '\n');
-  console.log(`(log written to ${logDir})`);
-  process.exit(code);
-};
+const { say, finish, scrub, setSecret } = makeScriptLog('health-check');
 
 const withTimeout = (promise, ms, what) =>
   Promise.race([
@@ -52,7 +33,7 @@ const HINTS = [
 
 try {
   const env = loadEnv();
-  token = env.token;
+  setSecret(env.token);
 
   const client = new Client({
     intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMembers],

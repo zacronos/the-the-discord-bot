@@ -114,15 +114,15 @@ Native Windows Task Scheduler logon-trigger task: no third-party binary (NSSM) o
 
 ### 1.2 Human: portal setup and first login
 
-- [ ] `[HUMAN]` In https://discord.com/developers/applications → **New Application** (suggested name: "The The Bot") → **Bot** tab → toggle OFF **Public Bot** (restricts installs to the app owner — the install URL is derivable from the public Application ID, so this toggle is the real access control) → toggle ON **SERVER MEMBERS INTENT** (required to know who has/hasn't voted) → **Reset Token** → copy it once. On **General Information**, copy the **Application ID** (and optionally upload `assets/bot-icon-1024.png` as the **App Icon** while on that page). Then in the PowerShell window you'll run the bot from (session-only, value never shown to the agent):
+- [X] `[HUMAN]` In https://discord.com/developers/applications → **New Application** (suggested name: "The The Bot") → **Bot** tab → toggle OFF **Public Bot** (restricts installs to the app owner — the install URL is derivable from the public Application ID, so this toggle is the real access control) → toggle ON **SERVER MEMBERS INTENT** (required to know who has/hasn't voted) → **Reset Token** → copy it once. On **General Information**, copy the **Application ID** (and optionally upload `assets/bot-icon-1024.png` as the **App Icon** while on that page). Then in the PowerShell window you'll run the bot from (session-only, value never shown to the agent):
   ```powershell
   $env:DISCORD_TOKEN = '<paste-token-here>'
   $env:DISCORD_APP_ID = '<paste-application-id-here>'
   ```
   (Optional alternative: put the same two lines as `KEY=value` in a gitignored `.env` and run scripts with `node --env-file=.env …`.)
-- [ ] `[HUMAN]` Run `npm run health-check` in that window
-- [ ] Agent: read `logs/<ts>__health-check/run.log`, confirm login + intent OK, then **delete** the `logs/<ts>__health-check/` folder
-- [ ] `[HUMAN]` Run `npm run invite-url`, open the printed URL, pick your server, **Authorize** (OAuth grants are human-only; with Public Bot OFF this works only for you, the app owner)
+- [X] `[HUMAN]` Run `npm run health-check` in that window
+- [X] Agent: read `logs/<ts>__health-check/run.log`, confirm login + intent OK, then **delete** the `logs/<ts>__health-check/` folder (3 runs analyzed 2026-08-07: intents hint worked; final bot user "The The Admin-Polling Bot#2334", app id matches)
+- [X] `[HUMAN]` Run `npm run invite-url`, open the printed URL, pick your server, **Authorize** (OAuth grants are human-only; with Public Bot OFF this works only for you, the app owner)
 
 *(Server access control decided 2026-08-07: **Public Bot OFF** is the chosen mechanism. A code-level guild allowlist — auto-leaving unlisted servers — was considered and declined.)*
 
@@ -162,7 +162,7 @@ Native Windows Task Scheduler logon-trigger task: no third-party binary (NSSM) o
 
 ### 2.2 `/ttdb-config` slash commands
 
-- [ ] `src/features/configCommands.js` — one `/ttdb-config` command (default member permissions: **Manage Server**; guild-only) with subcommands:
+- [X] `src/features/configCommands.js` — one `/ttdb-config` command (default member permissions: **Manage Server**; guild-only) with subcommands:
   - `poll-channel channel:<text channel>` — warns ephemerally if the bot lacks any of: View Channel, Send Messages, Embed Links, Mention Everyone, Read Message History in that channel
   - `hard-no-weight weight:<choice of -2 | -3 | -5 | -10 | veto>`
   - `pass-threshold value:<number ≥ 0> unit:<choice of votes | percent>`
@@ -171,9 +171,9 @@ Native Windows Task Scheduler logon-trigger task: no third-party binary (NSSM) o
   - `poll-starter-role role:<role>` — *optional* (Q6): when set, only members with this role may start polls (voting stays open to everyone)
   - `show` — ephemeral display of all current settings, flagging any required ones still missing
   - After any successful change: if all four **required** settings (`poll-channel`, `hard-no-weight`, `pass-threshold`, `permanent-category`) now have values, run init-message ensure (2.3) — per Q8 the init message only exists once required config is complete
-- [ ] Tests for the validation/formatting logic (command *handlers* as pure functions taking a fake interaction; no live Discord)
-- [ ] `scripts/register-commands.mjs`: registers the command definitions via REST; guild-scoped to `TTDB_GUILD_ID` when set (instant), global otherwise (~1 h propagation). Redacted run log to `logs/<ts>__register-commands/run.log`.
-- [ ] README: "Configuring the bot" — every subcommand, what it controls, and that polls refuse to start until required settings exist (Q8 default). Commit `feat: per-server configuration commands` + push
+- [X] Tests for the validation/formatting logic (command *handlers* as pure functions taking a fake interaction; no live Discord)
+- [X] `scripts/register-commands.mjs`: registers the command definitions via REST; guild-scoped to `TTDB_GUILD_ID` when set (instant), global otherwise (~1 h propagation). Redacted run log to `logs/<ts>__register-commands/run.log`. (Shared redacted-log helper extracted to `scripts/script-log.mjs`; health-check refactored onto it.)
+- [X] README: "Configuring the bot" — every subcommand, what it controls, and that polls refuse to start until required settings exist (Q8 default). Commit `feat: per-server configuration commands` + push
 - [ ] `[HUMAN]` In the env-var PowerShell window: `$env:TTDB_GUILD_ID = '<your-server-id>'` (right-click server icon → Copy Server ID, with Developer Mode on) then `npm run register-commands`
 - [ ] Agent: verify + delete `logs/<ts>__register-commands/`
 

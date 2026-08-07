@@ -61,6 +61,36 @@ permissions the bot needs:
 | Create Instant Invite | Generate the single-use invite link when an invite poll passes |
 | Manage Channels, Manage Roles | Move a channel into the permanent category and sync its permissions when a permanence poll passes |
 
+## Configuring the bot
+
+One-time after inviting the bot, register its slash commands (in the same
+shell where the env vars are set; setting `TTDB_GUILD_ID` to your server's
+ID makes the commands appear instantly instead of within an hour):
+
+```bash
+npm run register-commands
+```
+
+All configuration happens in Discord via `/ttdb-config`, usable only by
+members with the **Manage Server** permission. Poll features check these
+settings and refuse to start until all four required ones have values.
+
+| Subcommand | Required | What it controls |
+|---|---|---|
+| `poll-channel channel:<#channel>` | yes | The text channel polls are posted in |
+| `hard-no-weight weight:<-2 \| -3 \| -5 \| -10 \| veto>` | yes | How strongly a "Hard no" vote counts against a poll's total; `veto` means a single hard no fails the poll |
+| `pass-threshold value:<number> unit:<votes \| percent>` | yes | The vote total needed to pass: a literal total, or a percent of the server's current (non-bot) members |
+| `permanent-category category:<category>` | yes | The category a channel moves into when a make-it-permanent poll passes |
+| `invite-channel channel:<#channel>` | no | Where invite links from passed invite polls land; unset = the server's system channel |
+| `poll-starter-role role:<@role>` | no | Restrict poll *starting* to one role; unset = anyone. Voting is always open to everyone |
+| `show` | — | Show current settings and anything still missing |
+
+Every reply is private to you. When you configure a channel or category the
+bot checks its own permissions there and warns you about anything missing
+(e.g. Mention Everyone in the poll channel, Manage Channels/Roles on the
+category). A percent threshold above 100 is rejected outright — it could
+never pass.
+
 ## Development
 
 Requirements: **Node.js >= 24** (the project uses the built-in `node:sqlite`
