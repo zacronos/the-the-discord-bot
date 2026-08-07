@@ -5,8 +5,11 @@ import {
   castVote,
   countByChoice,
   countVoters,
+  deleteVote,
   deleteVotes,
   getVote,
+  listVoters,
+  listVotersByChoice,
 } from '../../src/store/votes.js';
 import { tempDb } from './helpers.js';
 
@@ -62,4 +65,24 @@ test('deleteVotes removes all votes for a poll and reports how many', (t) => {
   assert.equal(deleteVotes(db, 1), 2);
   assert.equal(countVoters(db, 1), 0);
   assert.equal(countVoters(db, 2), 1, 'other polls keep their votes');
+});
+
+test('listVoters and listVotersByChoice report who voted (for departure pruning and veto DMs)', (t) => {
+  const db = tempDb(t);
+  castVote(db, 1, 'u1', 'hard_no');
+  castVote(db, 1, 'u2', 'yes');
+  castVote(db, 1, 'u3', 'hard_no');
+  castVote(db, 2, 'u4', 'hard_no');
+
+  assert.deepEqual(listVoters(db, 1).sort(), ['u1', 'u2', 'u3']);
+  assert.deepEqual(listVotersByChoice(db, 1, 'hard_no').sort(), ['u1', 'u3']);
+});
+
+test('deleteVote removes a single member vote', (t) => {
+  const db = tempDb(t);
+  castVote(db, 1, 'u1', 'yes');
+  castVote(db, 1, 'u2', 'no');
+  deleteVote(db, 1, 'u1');
+  assert.equal(getVote(db, 1, 'u1'), undefined);
+  assert.equal(getVote(db, 1, 'u2'), 'no');
 });

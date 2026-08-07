@@ -1,11 +1,13 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
+  claimForClose,
   closePoll,
   createPoll,
   getPoll,
   listDue,
   listOpen,
+  listOpenAll,
   setMessageId,
 } from '../../src/store/polls.js';
 import { tempDb } from './helpers.js';
@@ -88,4 +90,22 @@ test('closePoll rejects a non-final status', (t) => {
   const db = tempDb(t);
   const poll = createPoll(db, base);
   assert.throws(() => closePoll(db, poll.id, 'open'), /Invalid poll close status: open/);
+});
+
+test('claimForClose claims an open poll exactly once', (t) => {
+  const db = tempDb(t);
+  const poll = createPoll(db, base);
+  assert.equal(claimForClose(db, poll.id), true);
+  assert.equal(getPoll(db, poll.id).status, 'closing');
+  assert.equal(claimForClose(db, poll.id), false, 'second concurrent claim loses');
+  assert.equal(closePoll(db, poll.id, 'passed'), true, 'claimed poll can still be finalized');
+});
+
+test('listOpenAll returns open polls across every guild', (t) => {
+  const db = tempDb(t);
+  const a = createPoll(db, base);
+  const b = createPoll(db, { ...base, guildId: 'g2' });
+  const closed = createPoll(db, base);
+  closePoll(db, closed.id, 'failed');
+  assert.deepEqual(listOpenAll(db).map((p) => p.id), [a.id, b.id]);
 });

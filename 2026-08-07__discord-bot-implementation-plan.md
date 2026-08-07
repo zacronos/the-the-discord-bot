@@ -214,7 +214,7 @@ Native Windows Task Scheduler logon-trigger task: no third-party binary (NSSM) o
 
 ### 4.1 Tally (pure function, exhaustive tests first)
 
-- [ ] `src/polls/tally.js`:
+- [X] `src/polls/tally.js`:
   ```js
   // tallyPoll({ counts, hardNoWeight, threshold, eligibleCount })
   //   counts: { yes, no, hard_no, abstain }   hardNoWeight: '-2'|'-3'|'-5'|'-10'|'veto'
@@ -222,21 +222,21 @@ Native Windows Task Scheduler logon-trigger task: no third-party binary (NSSM) o
   //   returns { outcome: 'passed'|'failed'|'vetoed', vetoCount, total, target }
   ```
   yes=+1, abstain=0, no=−1, hard_no=configured weight; any hard_no under `'veto'` ⇒ vetoed; else passed iff `total >= target` where target = `value` (count) or `(value/100) * eligibleCount` (percent)
-- [ ] Test table: single veto overrides big yes majority; each numeric weight; exact-boundary equality passes (both units); percent scales with eligibleCount; all-abstain vs `value: 0` passes; empty poll fails any positive threshold
-- [ ] Commit `feat: vote tally rules` + push
+- [X] Test table: single veto overrides big yes majority; each numeric weight; exact-boundary equality passes (both units); percent scales with eligibleCount; all-abstain vs `value: 0` passes; empty poll fails any positive threshold
+- [X] Commit `feat: vote tally rules` + push
 
 ### 4.2 Scheduler & close pipeline
 
-- [ ] `src/features/scheduler.js`: sweep **once per hour, on the hour** (`setTimeout` aligned to the next clock-hour boundary, then hourly; `TTDB_TEST_MODE=1` sweeps every minute) — each sweep closes polls with `closes_at <= now` (D5) and refreshes open-poll embed counts (membership may have changed); on startup — immediately close any polls that came due while the bot was down
-- [ ] `src/features/pollClose.js` — atomic claim (`UPDATE polls SET status='closing' WHERE id=? AND status='open'`, skip if no row changed), then: drop votes from users no longer in the guild (Q2) → tally → DMs → on `passed` run the poll-type action (Phases 5/6) → delete the poll message (ignore already-deleted) → persist final status + veto_count → apply Q5 retention (delete vote rows)
-- [ ] DM texts (send sequentially, ~500 ms apart; Q4 fallback on failure):
+- [X] `src/features/scheduler.js`: sweep **once per hour, on the hour** (`setTimeout` aligned to the next clock-hour boundary, then hourly; `TTDB_TEST_MODE=1` sweeps every minute) — each sweep closes polls with `closes_at <= now` (D5) and refreshes open-poll embed counts (membership may have changed); on startup — immediately close any polls that came due while the bot was down
+- [X] `src/features/pollClose.js` — atomic claim (`UPDATE polls SET status='closing' WHERE id=? AND status='open'`, skip if no row changed), then: drop votes from users no longer in the guild (Q2) → tally → DMs → on `passed` run the poll-type action (Phases 5/6) → delete the poll message (ignore already-deleted) → persist final status + veto_count → apply Q5 retention (delete vote rows)
+- [X] DM texts (send sequentially, ~500 ms apart; Q4 fallback on failure):
   - vetoed → initiator: "Your poll "<subject>" was vetoed by <N> member(s), so it did not pass. Please refrain from starting this poll again unless community concerns can be alleviated through private conversation."
   - vetoed → each vetoer: "The poll "<subject>" failed because of your veto. It may be helpful to privately discuss your concerns with <initiator>, who started it."
   - failed → initiator (no numbers): "Your poll "<subject>" did not pass. Please refrain from starting it again unless community concerns can be alleviated."
   - passed → initiator: "Your poll "<subject>" passed!" + action-specific content (Phases 5/6)
-- [ ] Abort path: poll message or channel found deleted while open → status `aborted`, DM initiator a brief explanation
-- [ ] Tests: due-selection, idempotent claim (double-close is a no-op), DM ordering/recipients per outcome (mocked transport), retention applied
-- [ ] README: "How results are decided" (weights, veto, both threshold units with worked examples, close conditions, poll deletion, what the initiator does/doesn't learn). Commit `feat: poll closing engine` + push
+- [X] Abort path: poll message or channel found deleted while open → status `aborted`, DM initiator a brief explanation
+- [X] Tests: due-selection, idempotent claim (double-close is a no-op), DM ordering/recipients per outcome (mocked transport), retention applied
+- [X] README: "How results are decided" (weights, veto, both threshold units with worked examples, close conditions, poll deletion, what the initiator does/doesn't learn). Commit `feat: poll closing engine` + push
 
 ## Phase 5 — "Invite someone" success action
 

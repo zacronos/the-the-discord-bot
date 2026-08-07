@@ -36,6 +36,18 @@ export function listOpen(db, guildId) {
   return db.prepare("SELECT * FROM polls WHERE status = 'open' AND guild_id = ? ORDER BY id").all(guildId);
 }
 
+export function listOpenAll(db) {
+  return db.prepare("SELECT * FROM polls WHERE status = 'open' ORDER BY id").all();
+}
+
+// Atomic claim for the close pipeline: exactly one caller wins.
+export function claimForClose(db, id) {
+  const { changes } = db
+    .prepare("UPDATE polls SET status = 'closing' WHERE id = ? AND status = 'open'")
+    .run(id);
+  return changes > 0;
+}
+
 // Moves a poll to a final status. Returns false if the poll was already
 // closed (so double-closing is a harmless no-op). The 'closing' state is the
 // close pipeline's in-flight claim (Phase 4).

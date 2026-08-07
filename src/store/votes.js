@@ -33,3 +33,21 @@ export function countVoters(db, pollId) {
 export function deleteVotes(db, pollId) {
   return db.prepare('DELETE FROM votes WHERE poll_id = ?').run(pollId).changes;
 }
+
+export function deleteVote(db, pollId, userId) {
+  return db.prepare('DELETE FROM votes WHERE poll_id = ? AND user_id = ?').run(pollId, userId).changes;
+}
+
+export function listVoters(db, pollId) {
+  return db
+    .prepare('SELECT user_id FROM votes WHERE poll_id = ?')
+    .all(pollId)
+    .map((row) => row.user_id);
+}
+
+export function listVotersByChoice(db, pollId, choice) {
+  return db
+    .prepare('SELECT user_id FROM votes WHERE poll_id = ? AND choice = ?')
+    .all(pollId, choice)
+    .map((row) => row.user_id);
+}

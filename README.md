@@ -133,6 +133,41 @@ from voting*. Your ballot shows your current vote, and you can change it
 any time until the poll closes. The poll closes at its scheduled hour — or
 immediately, once every (non-bot) member of the server has voted.
 
+## How results are decided
+
+A poll closes at its scheduled hour (the bot sweeps once per hour, on the
+hour), or immediately once everyone has voted. Votes are then counted:
+
+| Vote | Counts as |
+|---|---|
+| Yes! | +1 |
+| No, I'd rather not… | −1 |
+| I abstain from voting | 0 |
+| Hard no | the configured `hard-no-weight`: −2 / −3 / −5 / −10, **or `veto`** |
+
+If `hard-no-weight` is `veto`, a single Hard no fails the poll outright.
+Otherwise the poll **passes when the total reaches the configured
+threshold** — either a literal vote total, or a percent of the server's
+current non-bot members (evaluated at close time; votes from members who
+left the server are dropped). Reaching the threshold exactly counts as
+passing. Example with `pass-threshold 50 percent` in a 10-person server:
+6 Yes + 1 No + 1 Hard no (−3) = total 0 → fails; 8 Yes + 2 Abstain =
+total 8 → passes (target 5).
+
+When a poll closes, its message is deleted from the poll channel and all
+individual votes are erased — only the outcome is kept. The initiator gets
+the result by DM:
+
+- **Passed** — plus the follow-up action's result (e.g. an invite link).
+- **Did not pass** — no numbers are revealed, with a suggestion to hold off
+  unless community concerns can be alleviated.
+- **Vetoed** — how *many* members vetoed (never who), with the same
+  suggestion; each vetoing member is also privately told the poll failed on
+  their veto and encouraged to talk with the initiator directly.
+
+If your DMs are closed, the bot posts a small notice in the poll channel
+(revealing nothing) with a **Resend result** button only you can use.
+
 ## Development
 
 Requirements: **Node.js >= 24** (the project uses the built-in `node:sqlite`
