@@ -52,7 +52,7 @@ Node 24's built-in `DatabaseSync` = zero dependencies, no Windows native-build r
 Modal contains: **Text Display** (explanation + configured values + urgency warning), per-type input (**Text Input** for invitee name / **Channel Select** for target channel), and a **String Select** for duration (default 7 days). If any modal component turns out unsupported at implementation time, fall back to: button → ephemeral panel with the same selects + a Create button (works on every client, one extra click).
 
 ### D5. Scheduler: hourly sweep on the hour (chosen) vs per-poll `setTimeout`
-`setTimeout` overflows at ~24.8 days (2³¹ ms) — a 30-day poll breaks it. Instead, a sweep runs **once per hour, on the hour** (first run aligned to the next clock-hour boundary): it closes every poll with `closes_at <= now AND status='open'`, and startup catch-up closes anything that came due while the bot was down. Consequently every poll's expiration is **rounded up to the next clock-hour** (epoch-hour ceiling; a time already exactly on the hour is unchanged), so the displayed close time is always honest. The everyone-has-voted early close stays event-driven (fires on the final vote, not the sweep). `TT_TEST_MODE=1` (testing only) sweeps every minute and rounds expirations up to the next minute, so short test polls stay usable.
+`setTimeout` overflows at ~24.8 days (2³¹ ms) — a 30-day poll breaks it. Instead, a sweep runs **once per hour, on the hour** (first run aligned to the next clock-hour boundary): it closes every poll with `closes_at <= now AND status='open'`, and startup catch-up closes anything that came due while the bot was down. Consequently every poll's expiration is **rounded up to the next clock-hour** (epoch-hour ceiling; a time already exactly on the hour is unchanged), so the displayed close time is always honest. The everyone-has-voted early close stays event-driven (fires on the final vote, not the sweep). `TTDB_TEST_MODE=1` (testing only) sweeps every minute and rounds expirations up to the next minute, so short test polls stay usable.
 
 ### D6. Per-server config via `/ttdb-config` slash commands (chosen) vs config file
 Slash commands, gated to members with **Manage Server**, keep config in-Discord and per-guild. A config file would require host access for every tweak.
@@ -71,7 +71,7 @@ Slash commands, gated to members with **Manage Server**, keep config in-Discord 
 - [ ] `[HUMAN]` **Q1 — "No" option wording per poll type.** Invite polls use the spec text verbatim. Proposed default for channel-permanence: "No, I'd rather not, but I won't object if enough people want to" (fits 80-char button limit).
 - [ ] `[HUMAN]` **Q2 — Who counts as "everyone"/"people in the server"?** Default: **bots excluded** everywhere; eligible-voter count and percent-threshold base are evaluated **at close time**; votes from members who left before close are dropped.
 - [ ] `[HUMAN]` **Q3 — Which channel does the single-use invite point at?** Default: the server's **system channel**, falling back to the configured poll channel.
-- [ ] `[HUMAN]` **Q4 — If a result DM can't be delivered** (user has DMs off): default: post a minimal, non-revealing notice in the poll channel — "@initiator I couldn't DM you your poll result — enable DMs from server members, then press [Resend result]" (button `tt:resend:<pollId>`, usable only by the initiator).
+- [ ] `[HUMAN]` **Q4 — If a result DM can't be delivered** (user has DMs off): default: post a minimal, non-revealing notice in the poll channel — "@initiator I couldn't DM you your poll result — enable DMs from server members, then press [Resend result]" (button `ttdb:resend:<pollId>`, usable only by the initiator).
 - [ ] `[HUMAN]` **Q5 — Data retention after close.** Default: delete all per-user vote rows at close; keep only the poll row (type, subject, initiator, outcome, veto count, timestamps) to support Q4's resend.
 - [ ] `[HUMAN]` **Q6 — Who may start polls?** Default: any non-bot member who can see the configured poll channel (enforced naturally by button visibility).
 - [ ] `[HUMAN]` **Q7 — Concurrent/duplicate polls.** Default: multiple polls may run at once, but starting an *exact* duplicate (same type + same normalized subject, still open) is refused with an ephemeral message.
@@ -94,7 +94,7 @@ Slash commands, gated to members with **Manage Server**, keep config in-Discord 
 
 - [ ] `package.json`: `"type": "module"`, `"engines": { "node": ">=24" }`, scripts: `start` (`node src/index.js`), `test` (`node --test test/`), `register-commands` (`node scripts/register-commands.mjs`), `invite-url` (`node scripts/invite-url.mjs`), `health-check` (`node scripts/health-check.mjs`)
 - [ ] `npm install discord.js@^14.27.0` (sole runtime dependency)
-- [ ] `src/env.js`: reads `DISCORD_TOKEN`, `DISCORD_APP_ID`, optional `TT_DB_PATH` (default `./data/the-the.sqlite3`), `TT_TEST_MODE`, `TT_GUILD_ID`; throws a clear error naming any missing required var. Document that humans may use a gitignored `.env` with `node --env-file=.env` (no dotenv dependency needed on Node ≥20.6).
+- [ ] `src/env.js`: reads `DISCORD_TOKEN`, `DISCORD_APP_ID`, optional `TTDB_DB_PATH` (default `./data/the-the.sqlite3`), `TTDB_TEST_MODE`, `TTDB_GUILD_ID`; throws a clear error naming any missing required var. Document that humans may use a gitignored `.env` with `node --env-file=.env` (no dotenv dependency needed on Node ≥20.6).
 - [ ] Smoke test `test/env.test.js` (missing-var error message), run `npm test` to green
 - [ ] README: add "Development" section (Node ≥24, npm install, npm test, env var **names** and meanings). Commit `chore: scaffold node project` + push
 
@@ -122,7 +122,7 @@ Slash commands, gated to members with **Manage Server**, keep config in-Discord 
 
 ### 2.1 Database layer (TDD against a temp db file)
 
-- [ ] `src/db.js`: opens `node:sqlite` `DatabaseSync` at `TT_DB_PATH` (mkdir -p its folder), runs idempotent migrations:
+- [ ] `src/db.js`: opens `node:sqlite` `DatabaseSync` at `TTDB_DB_PATH` (mkdir -p its folder), runs idempotent migrations:
   ```sql
   CREATE TABLE IF NOT EXISTS guild_config (
     guild_id TEXT PRIMARY KEY,
@@ -159,39 +159,39 @@ Slash commands, gated to members with **Manage Server**, keep config in-Discord 
   - `permanent-category category:<category channel>` — warns if bot lacks Manage Channels / Manage Roles
   - `show` — ephemeral display of all current settings (and which are missing)
 - [ ] Tests for the validation/formatting logic (command *handlers* as pure functions taking a fake interaction; no live Discord)
-- [ ] `scripts/register-commands.mjs`: registers the command definitions via REST; guild-scoped to `TT_GUILD_ID` when set (instant), global otherwise (~1 h propagation). Redacted run log to `logs/<ts>__register-commands/run.log`.
+- [ ] `scripts/register-commands.mjs`: registers the command definitions via REST; guild-scoped to `TTDB_GUILD_ID` when set (instant), global otherwise (~1 h propagation). Redacted run log to `logs/<ts>__register-commands/run.log`.
 - [ ] README: "Configuring the bot" — every subcommand, what it controls, and that polls refuse to start until required settings exist (Q8 default). Commit `feat: per-server configuration commands` + push
-- [ ] `[HUMAN]` In the env-var PowerShell window: `$env:TT_GUILD_ID = '<your-server-id>'` (right-click server icon → Copy Server ID, with Developer Mode on) then `npm run register-commands`
+- [ ] `[HUMAN]` In the env-var PowerShell window: `$env:TTDB_GUILD_ID = '<your-server-id>'` (right-click server icon → Copy Server ID, with Developer Mode on) then `npm run register-commands`
 - [ ] Agent: verify + delete `logs/<ts>__register-commands/`
 
 ### 2.3 Init message with feature buttons
 
-- [ ] `src/features/initMessage.js` — `ensureInitMessage(guild)`: embed (footer marker `tt-init-v1`) explaining the two features, with buttons `tt:start:invite` ("Start a vote on inviting someone") and `tt:start:permchan` ("Start a vote on making a channel permanent"). Dedupe order: (1) stored `init_message_id` still exists → done; (2) scan last 100 channel messages for a bot-authored `tt-init-v1` footer → adopt it; (3) otherwise post fresh and store the id. When `poll-channel` changes, best-effort delete the old init message, then ensure in the new channel. Runs on startup for every configured guild and on every `poll-channel` change.
+- [ ] `src/features/initMessage.js` — `ensureInitMessage(guild)`: embed (footer marker `ttdb-init-v1`) explaining the two features, with buttons `ttdb:start:invite` ("Start a vote on inviting someone") and `ttdb:start:permchan` ("Start a vote on making a channel permanent"). Dedupe order: (1) stored `init_message_id` still exists → done; (2) scan last 100 channel messages for a bot-authored `ttdb-init-v1` footer → adopt it; (3) otherwise post fresh and store the id. When `poll-channel` changes, best-effort delete the old init message, then ensure in the new channel. Runs on startup for every configured guild and on every `poll-channel` change.
 - [ ] Tests: dedupe decision logic with a mocked channel (exists / adoptable / absent; channel-change path)
-- [ ] `src/index.js` + `src/discord/client.js`: client with intents `Guilds`, `GuildMembers`; `src/discord/interactionRouter.js` dispatches by `customId` prefix (`tt:`) and command name; `src/discord/customId.js` — `build(...parts)` / `parse(id)` helpers (tested)
+- [ ] `src/index.js` + `src/discord/client.js`: client with intents `Guilds`, `GuildMembers`; `src/discord/interactionRouter.js` dispatches by `customId` prefix (`ttdb:`) and command name; `src/discord/customId.js` — `build(...parts)` / `parse(id)` helpers (tested)
 - [ ] README: "How the poll channel works" (init message, buttons, what happens if it's deleted — reposted on next startup/config change). Commit `feat: init message and interaction routing` + push
 
 ## Phase 3 — Poll creation & anonymous voting framework
 
 ### 3.1 Creation modal
 
-- [ ] `src/features/pollCreate.js` — on `tt:start:*`: check Q8 config gate (ephemeral list of missing settings if incomplete) and Q7 duplicate gate, else open modal `tt:create:<type>`:
+- [ ] `src/features/pollCreate.js` — on `ttdb:start:*`: check Q8 config gate (ephemeral list of missing settings if incomplete) and Q7 duplicate gate, else open modal `ttdb:create:<type>`:
   - **Text Display**: "This starts an anonymous poll in this channel, open to everyone on the server. Nobody can see how anyone voted. The poll closes after the duration you pick, rounded up to the next hour on the clock — or as soon as everyone on the server has voted. When it closes, results are tallied (current settings: a **Hard no** counts as `<hard-no-weight>`; passing requires `<threshold: N votes | N% of members>`) and the outcome is DM'd to you. ⚠️ A shorter poll may reach a result quicker, but leaves less time for everyone to see it and vote — avoid shorter durations unless there is a real reason for urgency."
   - Invite type: **Text Input** `name` (label "Who should we invite?", max 80 chars)
   - Permanence type: **Channel Select** `channel` (text channels only)
-  - Both: **String Select** `duration` — options 3/5/7/14/30 days (7 = default-selected); with `TT_TEST_MODE=1`, extra options "5 minutes (TESTING ONLY)" / "30 minutes (TESTING ONLY)"
+  - Both: **String Select** `duration` — options 3/5/7/14/30 days (7 = default-selected); with `TTDB_TEST_MODE=1`, extra options "5 minutes (TESTING ONLY)" / "30 minutes (TESTING ONLY)"
   - Fallback if any modal component is rejected at runtime: D4's ephemeral-panel flow
 - [ ] Tests: modal/duration builders (default marked, test-mode additions), config-gate + duplicate-gate logic
 
 ### 3.2 Poll message
 
-- [ ] On modal submit: validate subject (name trimmed, 1–80 chars; channel is a text channel not already in the permanent category), compute `closes_at = roundUpToNextHour(created_at + duration)` (`src/util/time.js`; epoch-hour ceiling, exact-hour values unchanged; with `TT_TEST_MODE=1` round up to the next minute instead), insert poll row, post to the poll channel: content `@everyone` with `allowedMentions: { parse: ['everyone'] }`, embed showing **only**: who initiated, what the poll is about ("Should we invite **{name}** to the server?" / "Should {#channel} be made permanent?"), responded count, not-yet-responded count, closes `<t:…:R>` — plus one **Vote / change my vote** button (`tt:vote:<pollId>`). Store `message_id`. Reply ephemerally to the initiator with a link to the poll.
+- [ ] On modal submit: validate subject (name trimmed, 1–80 chars; channel is a text channel not already in the permanent category), compute `closes_at = roundUpToNextHour(created_at + duration)` (`src/util/time.js`; epoch-hour ceiling, exact-hour values unchanged; with `TTDB_TEST_MODE=1` round up to the next minute instead), insert poll row, post to the poll channel: content `@everyone` with `allowedMentions: { parse: ['everyone'] }`, embed showing **only**: who initiated, what the poll is about ("Should we invite **{name}** to the server?" / "Should {#channel} be made permanent?"), responded count, not-yet-responded count, closes `<t:…:R>` — plus one **Vote / change my vote** button (`ttdb:vote:<pollId>`). Store `message_id`. Reply ephemerally to the initiator with a link to the poll.
 - [ ] Eligible-voter helper `src/features/eligibility.js`: fetch members, count non-bots (per Q2), cache 60 s per guild
 - [ ] Tests: embed renderer (pure: poll row + counts → embed fields), subject sanitation (a name of `@everyone`/`<@123>` renders inert), `roundUpToNextHour` (mid-hour rounds up; exact hour unchanged; test-mode minute rounding)
 
 ### 3.3 Ephemeral ballot
 
-- [ ] `src/features/ballot.js` — `tt:vote:<pollId>`: ephemeral reply showing "Your current vote: **X**" (or "You haven't voted yet") + four buttons `tt:cast:<pollId>:<choice>` labeled per Q1 wording ("Yes!" / "No, I'd rather not invite them, but I won't object if enough people want to" / "Hard no, I really don't want this" / "I abstain from voting"); votes may be changed until close; casting updates the ephemeral message in place and refreshes the public counts (throttled: at most one embed edit per poll per 5 s)
+- [ ] `src/features/ballot.js` — `ttdb:vote:<pollId>`: ephemeral reply showing "Your current vote: **X**" (or "You haven't voted yet") + four buttons `ttdb:cast:<pollId>:<choice>` labeled per Q1 wording ("Yes!" / "No, I'd rather not invite them, but I won't object if enough people want to" / "Hard no, I really don't want this" / "I abstain from voting"); votes may be changed until close; casting updates the ephemeral message in place and refreshes the public counts (throttled: at most one embed edit per poll per 5 s)
 - [ ] Closed/unknown poll → ephemeral "this poll has closed"
 - [ ] After every cast: if `countVoters(pollId) >= eligibleCount`, trigger the close pipeline immediately (everyone-voted early close)
 - [ ] Tests: cast/change/upsert flows, throttle logic, early-close trigger condition
@@ -214,7 +214,7 @@ Slash commands, gated to members with **Manage Server**, keep config in-Discord 
 
 ### 4.2 Scheduler & close pipeline
 
-- [ ] `src/features/scheduler.js`: sweep **once per hour, on the hour** (`setTimeout` aligned to the next clock-hour boundary, then hourly; `TT_TEST_MODE=1` sweeps every minute) — each sweep closes polls with `closes_at <= now` (D5) and refreshes open-poll embed counts (membership may have changed); on startup — immediately close any polls that came due while the bot was down
+- [ ] `src/features/scheduler.js`: sweep **once per hour, on the hour** (`setTimeout` aligned to the next clock-hour boundary, then hourly; `TTDB_TEST_MODE=1` sweeps every minute) — each sweep closes polls with `closes_at <= now` (D5) and refreshes open-poll embed counts (membership may have changed); on startup — immediately close any polls that came due while the bot was down
 - [ ] `src/features/pollClose.js` — atomic claim (`UPDATE polls SET status='closing' WHERE id=? AND status='open'`, skip if no row changed), then: drop votes from users no longer in the guild (Q2) → tally → DMs → on `passed` run the poll-type action (Phases 5/6) → delete the poll message (ignore already-deleted) → persist final status + veto_count → apply Q5 retention (delete vote rows)
 - [ ] DM texts (send sequentially, ~500 ms apart; Q4 fallback on failure):
   - vetoed → initiator: "Your poll "<subject>" was vetoed by <N> member(s), so it did not pass. Please refrain from starting this poll again unless community concerns can be alleviated through private conversation."
@@ -252,7 +252,7 @@ Slash commands, gated to members with **Manage Server**, keep config in-Discord 
 
 ## Post-Automation (human, after the agent's automatable work — no checkboxes)
 
-- Live end-to-end pass on a real (or throwaway) server with `TT_TEST_MODE=1`: configure all four settings; run an invite poll and a permanence poll with 5-minute durations (test mode sweeps every minute; production sweeps hourly on the hour); vote from 2+ accounts; exercise a veto outcome, a failed outcome, and both pass actions (invite link redeems once; channel moves + perms sync); confirm DMs, vote-change, early close when everyone votes, and poll-message deletion.
+- Live end-to-end pass on a real (or throwaway) server with `TTDB_TEST_MODE=1`: configure all four settings; run an invite poll and a permanence poll with 5-minute durations (test mode sweeps every minute; production sweeps hourly on the hour); vote from 2+ accounts; exercise a veto outcome, a failed outcome, and both pass actions (invite link redeems once; channel moves + perms sync); confirm DMs, vote-change, early close when everyone votes, and poll-message deletion.
 - Decide hosting (Q9) and set it up. Options: **this PC** (free; polls pause while it sleeps — pm2/NSSM for auto-restart), **small VPS** (~$5/mo, always on, pm2 + `pm2 save`), **container host** (Railway/Fly; mind SQLite volume persistence). The startup catch-up (4.2) closes overdue polls after any downtime.
 - Rotate the bot token immediately if it's ever pasted anywhere public; re-run the Phase 1 env-var step after rotating.
 - Occasionally back up `data/the-the.sqlite3` (stop the bot first, copy the file).
