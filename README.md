@@ -7,6 +7,53 @@ channel become permanent?"), with per-server configurable counting rules.
 *(Implementation in progress — see
 [the implementation plan](2026-08-07__discord-bot-implementation-plan.md).)*
 
+## Creating your Discord application
+
+1. Go to <https://discord.com/developers/applications> and press **New
+   Application** (suggested name: "The The Bot").
+2. Open the **Bot** tab and, under *Privileged Gateway Intents*, toggle ON
+   **SERVER MEMBERS INTENT**. The bot needs it to know who has and hasn't
+   voted (for early poll closes and percent-based thresholds).
+3. Still on the **Bot** tab, press **Reset Token** and copy the token.
+4. On **General Information**, copy the **Application ID**.
+5. In the shell you'll run the bot from, set both values (session-only;
+   alternatively put them in a gitignored `.env` — see
+   [Development](#development)):
+
+   ```powershell
+   $env:DISCORD_TOKEN = '<paste-token-here>'
+   $env:DISCORD_APP_ID = '<paste-application-id-here>'
+   ```
+
+   Treat the token like a password: never commit it, never paste it into
+   chat or anywhere else.
+6. Verify the setup:
+
+   ```bash
+   npm run health-check
+   ```
+
+   On success this prints the bot user and its servers; on failure it prints
+   a plain-English hint (bad token vs. missing intent). A redacted copy goes
+   to `logs/<timestamp>__health-check/run.log` — it never contains the token.
+
+## Inviting the bot to a server
+
+```bash
+npm run invite-url
+```
+
+Open the printed URL, pick your server, and press **Authorize**. The URL
+requests the `bot` and `applications.commands` scopes plus exactly the
+permissions the bot needs:
+
+| Permission | Why the bot needs it |
+|---|---|
+| View Channel, Send Messages, Embed Links, Read Message History | Operate the poll channel |
+| Mention Everyone | Announce new polls with `@everyone` |
+| Create Instant Invite | Generate the single-use invite link when an invite poll passes |
+| Manage Channels, Manage Roles | Move a channel into the permanent category and sync its permissions when a permanence poll passes |
+
 ## Development
 
 Requirements: **Node.js >= 24** (the project uses the built-in `node:sqlite`

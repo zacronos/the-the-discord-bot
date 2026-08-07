@@ -107,9 +107,9 @@ Native Windows Task Scheduler logon-trigger task: no third-party binary (NSSM) o
 
 ### 1.1 Agent: helper scripts + docs first
 
-- [ ] `scripts/health-check.mjs`: logs in with `DISCORD_TOKEN`, prints bot tag, app id, and joined-guild names/ids, then exits. Writes the same **redacted** output (never the token, no member data) to `logs/<ts>__health-check/run.log`. Exit code 1 with a plain-English hint on auth failure.
-- [ ] `scripts/invite-url.mjs`: no secrets needed — from `DISCORD_APP_ID` prints the install URL with scopes `bot applications.commands` and permissions computed via `PermissionsBitField.resolve([ViewChannel, SendMessages, EmbedLinks, ReadMessageHistory, MentionEveryone, CreateInstantInvite, ManageChannels, ManageRoles])` (ManageChannels+ManageRoles are needed later to move a channel and sync its permission overwrites)
-- [ ] README: "Creating your Discord application" — numbered portal steps (below) — and "Inviting the bot to a server" using `npm run invite-url`. Commit `feat: app bootstrap scripts and setup docs` + push
+- [X] `scripts/health-check.mjs`: logs in with `DISCORD_TOKEN` (declaring the Guilds + GuildMembers intents, so a missing SERVER MEMBERS toggle is caught here), prints bot tag, app id, and joined-guild names/ids, then exits. Writes the same **redacted** output (never the token, no member data) to `logs/<ts>__health-check/run.log`. Exit code 1 with a plain-English hint on auth failure.
+- [X] `scripts/invite-url.mjs`: no secrets needed — from `DISCORD_APP_ID` prints the install URL with scopes `bot applications.commands` and permissions computed via `PermissionsBitField.resolve([ViewChannel, SendMessages, EmbedLinks, ReadMessageHistory, MentionEveryone, CreateInstantInvite, ManageChannels, ManageRoles])` (ManageChannels+ManageRoles are needed later to move a channel and sync its permission overwrites)
+- [X] README: "Creating your Discord application" — numbered portal steps (below) — and "Inviting the bot to a server" using `npm run invite-url`. Commit `feat: app bootstrap scripts and setup docs` + push
 
 ### 1.2 Human: portal setup and first login
 
