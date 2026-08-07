@@ -18,7 +18,9 @@ channel become permanent?"), with per-server configurable counting rules.
    ON **SERVER MEMBERS INTENT** — the bot needs it to know who has and
    hasn't voted (for early poll closes and percent-based thresholds).
 3. Still on the **Bot** tab, press **Reset Token** and copy the token.
-4. On **General Information**, copy the **Application ID**.
+4. On **General Information**, copy the **Application ID**. While there, you
+   can also upload [assets/bot-icon-1024.png](assets/bot-icon-1024.png) as
+   the **App Icon** (vector source: [assets/bot-icon.svg](assets/bot-icon.svg)).
 5. In the shell you'll run the bot from, set both values (session-only;
    alternatively put them in a gitignored `.env` — see
    [Development](#development)):
