@@ -91,6 +91,20 @@ bot checks its own permissions there and warns you about anything missing
 category). A percent threshold above 100 is rejected outright — it could
 never pass.
 
+## How the poll channel works
+
+Once **all four required settings** have values, the bot posts a
+"Start a community poll" message in the poll channel, with one button per
+poll type. That message is the entry point for everything members do.
+
+- The bot recognizes its own message (via an embed marker), so restarting
+  the bot or re-running config never produces duplicates — even if the
+  bot's database is lost, it re-adopts the existing message.
+- If the message gets deleted, the bot reposts it on its next startup or
+  the next configuration change.
+- If you change `poll-channel`, the old message is removed and a fresh one
+  is posted in the new channel.
+
 ## Development
 
 Requirements: **Node.js >= 24** (the project uses the built-in `node:sqlite`

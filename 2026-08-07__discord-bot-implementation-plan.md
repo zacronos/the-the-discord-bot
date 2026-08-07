@@ -179,10 +179,10 @@ Native Windows Task Scheduler logon-trigger task: no third-party binary (NSSM) o
 
 ### 2.3 Init message with feature buttons
 
-- [ ] `src/features/initMessage.js` — `ensureInitMessage(guild)`: embed (footer marker `ttdb-init-v1`) explaining the two features, with buttons `ttdb:start:invite` ("Start a vote on inviting someone") and `ttdb:start:permchan` ("Start a vote on making a channel permanent"). Dedupe order: (1) stored `init_message_id` still exists → done; (2) scan last 100 channel messages for a bot-authored `ttdb-init-v1` footer → adopt it; (3) otherwise post fresh and store the id. When `poll-channel` changes, best-effort delete the old init message, then ensure in the new channel. Runs on startup for every guild whose four required settings are complete, and after any config change that leaves them complete (Q8); while required config is incomplete no init message is posted.
-- [ ] Tests: dedupe decision logic with a mocked channel (exists / adoptable / absent; channel-change path)
-- [ ] `src/index.js` + `src/discord/client.js`: client with intents `Guilds`, `GuildMembers`; `src/discord/interactionRouter.js` dispatches by `customId` prefix (`ttdb:`) and command name; `src/discord/customId.js` — `build(...parts)` / `parse(id)` helpers (tested)
-- [ ] README: "How the poll channel works" (init message, buttons, what happens if it's deleted — reposted on next startup/config change). Commit `feat: init message and interaction routing` + push
+- [X] `src/features/initMessage.js` — `ensureInitMessage(guild)`: embed (footer marker `ttdb-init-v1`) explaining the two features, with buttons `ttdb:start:invite` ("Start a vote on inviting someone") and `ttdb:start:permchan` ("Start a vote on making a channel permanent"). Dedupe order: (1) stored `init_message_id` still exists → done; (2) scan last 100 channel messages for a bot-authored `ttdb-init-v1` footer → adopt it; (3) otherwise post fresh and store the id. When `poll-channel` changes, best-effort delete the old init message, then ensure in the new channel. Runs on startup for every guild whose four required settings are complete, and after any config change that leaves them complete (Q8); while required config is incomplete no init message is posted.
+- [X] Tests: dedupe decision logic with a mocked channel (exists / adoptable / absent; channel-change path)
+- [X] `src/index.js` + `src/discord/client.js`: client with intents `Guilds`, `GuildMembers`; `src/discord/interactionRouter.js` dispatches by `customId` prefix (`ttdb:`) and command name; `src/discord/customId.js` — `build(...parts)` / `parse(id)` helpers (tested). (Tracking the init message's channel needed a `guild_config.init_channel_id` column — added to the schema with a guarded ALTER for older files.)
+- [X] README: "How the poll channel works" (init message, buttons, what happens if it's deleted — reposted on next startup/config change). Commit `feat: init message and interaction routing` + push
 
 ## Phase 3 — Poll creation & anonymous voting framework
 
@@ -266,7 +266,7 @@ Native Windows Task Scheduler logon-trigger task: no third-party binary (NSSM) o
 ## Phase 8 — Auto-start on this machine (Q9 / D7)
 
 - [ ] `scripts/start-bot.cmd` — Task Scheduler launcher: `cd` to the repo root, rotate the previous log (`move /Y data\bot.log data\bot.log.1`), then `node --env-file=.env src/index.js >> data\bot.log 2>&1`. Bot console output contains no secrets (the token is never logged), and `data/` is gitignored.
-- [ ] `[HUMAN]` Create `.env` in the repo root (gitignored; read only by the launcher — the agent never sees the values; no-op if already created during Phase 1's optional alternative). Exactly two lines:
+- [X] `[HUMAN]` Create `.env` in the repo root (gitignored; read only by the launcher — the agent never sees the values; no-op if already created during Phase 1's optional alternative). Exactly two lines:
   ```
   DISCORD_TOKEN=<paste-token-here>
   DISCORD_APP_ID=<paste-application-id-here>

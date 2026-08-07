@@ -4,6 +4,7 @@
 const FIELDS = new Set([
   'poll_channel_id',
   'init_message_id',
+  'init_channel_id',
   'hard_no_weight',
   'threshold_type',
   'threshold_value',

@@ -8,6 +8,8 @@ CREATE TABLE IF NOT EXISTS guild_config (
   guild_id TEXT PRIMARY KEY,
   poll_channel_id TEXT,
   init_message_id TEXT,
+  init_channel_id TEXT,           -- where the init message actually lives
+
   hard_no_weight TEXT,            -- '-2'|'-3'|'-5'|'-10'|'veto'
   threshold_type TEXT,            -- 'count'|'percent'
   threshold_value REAL,
@@ -48,5 +50,13 @@ export function openDb(path) {
   const db = new DatabaseSync(path);
   db.exec('PRAGMA journal_mode = WAL;');
   db.exec(SCHEMA);
+  // Column additions for databases created by older schema versions.
+  for (const alter of ['ALTER TABLE guild_config ADD COLUMN init_channel_id TEXT']) {
+    try {
+      db.exec(alter);
+    } catch {
+      // column already exists (fresh schema or previously migrated)
+    }
+  }
   return db;
 }
