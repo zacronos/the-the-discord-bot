@@ -265,16 +265,16 @@ Native Windows Task Scheduler logon-trigger task: no third-party binary (NSSM) o
 
 ## Phase 8 — Auto-start on this machine (Q9 / D7)
 
-- [ ] `scripts/start-bot.cmd` — Task Scheduler launcher: `cd` to the repo root, rotate the previous log (`move /Y data\bot.log data\bot.log.1`), then `node --env-file=.env src/index.js >> data\bot.log 2>&1`. Bot console output contains no secrets (the token is never logged), and `data/` is gitignored.
+- [X] `scripts/start-bot.cmd` — Task Scheduler launcher: `cd` to the repo root, rotate the previous log (`move /Y data\bot.log data\bot.log.1`), then `node --env-file=.env src/index.js >> data\bot.log 2>&1`. Bot console output contains no secrets (the token is never logged), and `data/` is gitignored.
 - [X] `[HUMAN]` Create `.env` in the repo root (gitignored; read only by the launcher — the agent never sees the values; no-op if already created during Phase 1's optional alternative). Exactly two lines:
   ```
   DISCORD_TOKEN=<paste-token-here>
   DISCORD_APP_ID=<paste-application-id-here>
   ```
-- [ ] `scripts/install-startup-task.ps1` (+ matching `scripts/uninstall-startup-task.ps1`) — idempotent `Register-ScheduledTask` for task **"TheTheDiscordBot"**: trigger *At log on* of the current user, action = `start-bot.cmd`, settings: on failure restart every 1 minute up to 3 times, no execution time limit, allow start on batteries. User-level registration — no admin rights needed; re-running replaces the task.
-- [ ] Run the install script, then `Start-ScheduledTask -TaskName TheTheDiscordBot`; confirm the task state is Running and `data/bot.log` shows a successful login line
-- [ ] README: "Running on startup (Windows)" — install/uninstall/start/stop commands, log location, the sleep caveat (votes are only collected while the machine is awake; the hourly sweep catches up missed closes at the next run or startup)
-- [ ] Commit `feat: auto-start via Windows Task Scheduler` + push
+- [X] `scripts/install-startup-task.ps1` (+ matching `scripts/uninstall-startup-task.ps1`) — idempotent `Register-ScheduledTask` for task **"TheTheDiscordBot"**: trigger *At log on* of the current user, action = `start-bot.cmd`, settings: on failure restart every 1 minute up to 3 times, no execution time limit, allow start on batteries. User-level registration — no admin rights needed; re-running replaces the task.
+- [X] Run the install script, then `Start-ScheduledTask -TaskName TheTheDiscordBot`; confirm the task state is Running and `data/bot.log` shows a successful login line (verified 2026-08-07: task Running; log shows "logged in as The The Admin-Polling Bot#2334; 1 guild(s)")
+- [X] README: "Running on startup (Windows)" — install/uninstall/start/stop commands, log location, the sleep caveat (votes are only collected while the machine is awake; the hourly sweep catches up missed closes at the next run or startup)
+- [X] Commit `feat: auto-start via Windows Task Scheduler` + push
 
 ## Post-Automation (human, after the agent's automatable work — no checkboxes)
 

@@ -207,6 +207,29 @@ the result by DM:
 If your DMs are closed, the bot posts a small notice in the poll channel
 (revealing nothing) with a **Resend result** button only you can use.
 
+## Running on startup (Windows)
+
+The repo ships a user-level Task Scheduler setup (no admin rights needed).
+The task runs `scripts/start-bot.cmd`, which reads the gitignored `.env`
+and appends output to `data/bot.log` (previous run kept as `bot.log.1`).
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts\install-startup-task.ps1
+```
+
+```powershell
+Start-ScheduledTask -TaskName TheTheDiscordBot
+```
+
+The task starts the bot at every logon and restarts it up to 3 times if it
+crashes. Stop it with `Stop-ScheduledTask -TaskName TheTheDiscordBot`;
+remove it with `scripts\uninstall-startup-task.ps1`.
+
+Caveat: the bot only collects votes while this machine is awake and logged
+in. Missed poll closes are caught up at the next hourly sweep or startup.
+Occasionally back up `data/the-the.sqlite3` (stop the bot first, copy the
+file).
+
 ## Development
 
 Requirements: **Node.js >= 24** (the project uses the built-in `node:sqlite`
