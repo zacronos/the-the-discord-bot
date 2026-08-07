@@ -97,11 +97,11 @@ Native Windows Task Scheduler logon-trigger task: no third-party binary (NSSM) o
 
 ### 0.2 Node project scaffolding
 
-- [ ] `package.json`: `"type": "module"`, `"engines": { "node": ">=24" }`, scripts: `start` (`node src/index.js`), `test` (`node --test test/`), `register-commands` (`node scripts/register-commands.mjs`), `invite-url` (`node scripts/invite-url.mjs`), `health-check` (`node scripts/health-check.mjs`)
-- [ ] `npm install discord.js@^14.27.0` (sole runtime dependency)
-- [ ] `src/env.js`: reads `DISCORD_TOKEN`, `DISCORD_APP_ID`, optional `TTDB_DB_PATH` (default `./data/the-the.sqlite3`), `TTDB_TEST_MODE`, `TTDB_GUILD_ID`; throws a clear error naming any missing required var. Document that humans may use a gitignored `.env` with `node --env-file=.env` (no dotenv dependency needed on Node ≥20.6).
-- [ ] Smoke test `test/env.test.js` (missing-var error message), run `npm test` to green
-- [ ] README: add "Development" section (Node ≥24, npm install, npm test, env var **names** and meanings). Commit `chore: scaffold node project` + push
+- [X] `package.json`: `"type": "module"`, `"engines": { "node": ">=24" }`, scripts: `start` (`node src/index.js`), `test` (`node --test` — note: a `test/` directory argument breaks on Windows, the runner's default `**/*.test.js` discovery is used instead), `register-commands` (`node scripts/register-commands.mjs`), `invite-url` (`node scripts/invite-url.mjs`), `health-check` (`node scripts/health-check.mjs`)
+- [X] `npm install discord.js@^14.27.0` (sole runtime dependency)
+- [X] `src/env.js`: reads `DISCORD_TOKEN`, `DISCORD_APP_ID`, optional `TTDB_DB_PATH` (default `./data/the-the.sqlite3`), `TTDB_TEST_MODE`, `TTDB_GUILD_ID`; throws a clear error naming any missing required var. Document that humans may use a gitignored `.env` with `node --env-file=.env` (no dotenv dependency needed on Node ≥20.6).
+- [X] Smoke test `test/env.test.js` (missing-var error message), run `npm test` to green
+- [X] README: add "Development" section (Node ≥24, npm install, npm test, env var **names** and meanings). Commit `chore: scaffold node project` + push
 
 ## Phase 1 — Discord application bootstrap (helper scripts shrink the human residue)
 
