@@ -240,10 +240,10 @@ Native Windows Task Scheduler logon-trigger task: no third-party binary (NSSM) o
 
 ## Phase 5 — "Invite someone" success action
 
-- [ ] `src/features/actions/invite.js`: on pass, create invite on the Q3 landing channel (configured `invite-channel` → server system channel → poll channel) — `createInvite({ maxUses: 1, maxAge: 604800, unique: true, reason: 'Poll <id> passed' })` — and include the URL in the initiator's success DM: "Here is a single-use invite link, valid for 7 days, to send to <name>: <url>"
-- [ ] Missing Create Instant Invite permission → still DM success, but explain the bot couldn't create the link and an admin should (also log)
-- [ ] Tests: invite options, permission-failure path (mocked channel)
-- [ ] README: feature walkthrough under "Poll types". Commit `feat: invite-someone poll action` + push
+- [X] `src/features/actions/invite.js`: on pass, create invite on the Q3 landing channel (configured `invite-channel` → server system channel → poll channel) — `createInvite({ maxUses: 1, maxAge: 604800, unique: true, reason: 'Poll <id> passed' })` — and include the URL in the initiator's success DM: "Here is a single-use invite link, valid for 7 days, to send to <name>: <url>"
+- [X] Missing Create Instant Invite permission → still DM success, but explain the bot couldn't create the link and an admin should (handled by the pipeline's action-failure note, tested in 4.2)
+- [X] Tests: invite options, permission-failure path (mocked channel)
+- [X] README: feature walkthrough under "Poll types". Commit `feat: invite-someone poll action` + push
 
 ## Phase 6 — "Make channel permanent" success action
 

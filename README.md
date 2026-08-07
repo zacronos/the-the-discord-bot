@@ -133,6 +133,18 @@ from voting*. Your ballot shows your current vote, and you can change it
 any time until the poll closes. The poll closes at its scheduled hour — or
 immediately, once every (non-bot) member of the server has voted.
 
+## Poll types
+
+### Start a vote on inviting someone
+
+Asks for the person's name and the poll duration. If the poll passes, the
+bot creates a **single-use invite link valid for 7 days** and includes it
+in the initiator's result DM, ready to forward to the invitee. The link
+lands new members in the configured `invite-channel` (or the server's
+system channel if unset). If the bot can't create the link (e.g. missing
+Create Instant Invite permission), the DM still reports the pass and asks
+an admin to create the invite manually.
+
 ## How results are decided
 
 A poll closes at its scheduled hour (the bot sweeps once per hour, on the
