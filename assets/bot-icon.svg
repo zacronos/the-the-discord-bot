@@ -1,7 +1,7 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
   <!-- The The Bot app icon: a secret-keeper ballot box.
-       Visor = votes stay anonymous; mouth slot + slip = the ballot being cast.
-       Palette deliberately avoids red/green (the bot never reveals outcomes per voter). -->
+       Visor = votes stay anonymous; green/red check-mark eyes = the yes/no
+       choices being weighed; mouth slot = the ballot box. -->
   <defs>
     <radialGradient id="bg" cx="50%" cy="42%" r="75%">
       <stop offset="0%" stop-color="#17606B"/>
@@ -29,14 +29,8 @@
 
   <!-- visor -->
   <rect x="300" y="398" width="424" height="134" rx="67" fill="#122A31"/>
-  <circle cx="428" cy="465" r="27" fill="#7BE8C8"/>
-  <circle cx="596" cy="465" r="27" fill="#7BE8C8"/>
-
-  <!-- ballot slip, tucked into the mouth slot -->
-  <g transform="rotate(-10 560 610)">
-    <rect x="500" y="546" width="124" height="100" rx="14" fill="#FFFFFF"/>
-    <path d="M534 590 L556 614 L596 570" fill="none" stroke="#122A31" stroke-width="16" stroke-linecap="round" stroke-linejoin="round"/>
-  </g>
+  <path d="M394 468 L418 492 L462 440" fill="none" stroke="#4FD584" stroke-width="20" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M562 468 L586 492 L630 440" fill="none" stroke="#F26D5B" stroke-width="20" stroke-linecap="round" stroke-linejoin="round"/>
 
   <!-- mouth slot -->
   <rect x="368" y="630" width="288" height="48" rx="24" fill="#122A31"/>
