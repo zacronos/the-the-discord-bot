@@ -7,6 +7,8 @@ import { createPoll, listOpen, setMessageId } from '../store/polls.js';
 import {
   channelKind,
   formatThreshold,
+  hardNoDescription,
+  isVetoConfig,
   maxOpenPolls,
   missingRequiredSettings,
   permanentCategoryFor,
@@ -24,14 +26,13 @@ const replyEphemeral = (interaction, content) =>
   interaction.reply({ content, flags: MessageFlags.Ephemeral });
 
 export function buildCreationExplanation(cfg, pollType) {
-  const weight =
-    cfg.hard_no_weight === 'veto'
-      ? 'a **veto** (a single one fails the poll)'
-      : `**${cfg.hard_no_weight}** on the point total`;
+  const hardNo = isVetoConfig(cfg)
+    ? `a Hard no ${hardNoDescription(cfg)}`
+    : `a Hard no counts as ${hardNoDescription(cfg)}`;
   const threshold = thresholdFor(cfg, pollType);
   return [
     'This starts an **anonymous** poll in the poll channel, open to everyone on the server. Nobody can see how anyone voted.',
-    `The poll closes after the duration you pick, rounded up to the next hour on the clock — or as soon as everyone on the server has voted. At close: Yes = +1, No = −1, Abstain = 0, and a Hard no counts as ${weight}. The poll passes when the point total at poll closing is at least **${threshold ? formatThreshold(threshold) : 'the configured threshold'}**. The result goes privately to you by DM.`,
+    `The poll closes after the duration you pick, rounded up to the next hour on the clock — or as soon as everyone on the server has voted. At close: Yes = +1, No = −1, Abstain = 0, and ${hardNo}. The poll passes when the point total at poll closing is at least **${threshold ? formatThreshold(threshold) : 'the configured threshold'}**. The result goes privately to you by DM.`,
     '⚠️ A shorter poll may reach a result quicker, but leaves less time for everyone to see it and vote — avoid shorter durations unless there is a real reason for urgency.',
   ].join('\n\n');
 }

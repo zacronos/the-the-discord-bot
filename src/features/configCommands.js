@@ -190,6 +190,15 @@ export function missingRequiredSettings(cfg) {
   return missing;
 }
 
+// Shared "Hard no" description used by both the init message and the poll
+// creation prompt, so the two never drift apart. Unset config reads as veto.
+export const isVetoConfig = (cfg) => cfg?.hard_no_weight == null || cfg.hard_no_weight === 'veto';
+export function hardNoDescription(cfg) {
+  return isVetoConfig(cfg)
+    ? '**vetoes the poll** (it fails outright if there are any vetoes)'
+    : `**${cfg.hard_no_weight.replace('-', '−')}**`;
+}
+
 export const DEFAULT_MAX_OPEN_POLLS = 10;
 export const maxOpenPolls = (cfg) => cfg?.max_open_polls ?? DEFAULT_MAX_OPEN_POLLS;
 

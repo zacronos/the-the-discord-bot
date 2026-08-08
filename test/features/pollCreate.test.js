@@ -111,6 +111,18 @@ test('the creation explanation uses the threshold for that poll type', () => {
   assert.match(permText, /7 points total/, 'permanence uses its own threshold');
 });
 
+test('the creation explanation describes Hard no exactly like the init message', () => {
+  const vetoText = buildCreateModal('invite', FULL_CONFIG, false).components.find((c) => c.type === 10).content;
+  assert.match(
+    vetoText,
+    /a Hard no \*\*vetoes the poll\*\* \(it fails outright if there are any vetoes\)/
+  );
+
+  const numericText = buildCreateModal('invite', { ...FULL_CONFIG, hard_no_weight: '-2' }, false)
+    .components.find((c) => c.type === 10).content;
+  assert.match(numericText, /a Hard no counts as \*\*−2\*\*/);
+});
+
 test('extractModalValues reads text values and select value arrays from nested shapes', () => {
   const values = extractModalValues({
     components: [

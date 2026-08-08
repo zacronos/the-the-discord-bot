@@ -9,6 +9,7 @@ import { buildId } from '../discord/customId.js';
 import { getConfig, setConfig } from '../store/guildConfig.js';
 import {
   formatThreshold,
+  hardNoDescription,
   missingRequiredSettings,
   thresholdFor,
 } from './configCommands.js';
@@ -37,16 +38,12 @@ const BUTTONS = [
 // How votes become points. Config-derived: changing hard-no-weight changes
 // this text, which changes the content hash, which edits stored messages.
 function pointsParagraph(cfg) {
-  const hardNo =
-    cfg?.hard_no_weight == null || cfg.hard_no_weight === 'veto'
-      ? '• Hard no  =>  **vetoes the poll** (it fails outright if there are any vetoes)'
-      : `• Hard no  =>  **${cfg.hard_no_weight.replace('-', '−')}**`;
   return [
     '__When a poll closes, votes are totaled as points__',
     '• Yes  =>  **+1**',
     '• No  =>  **−1**',
     '• Abstain  =>  **0**',
-    hardNo,
+    `• Hard no  =>  ${hardNoDescription(cfg)}`,
   ].join('\n');
 }
 
