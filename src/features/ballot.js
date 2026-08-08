@@ -152,7 +152,7 @@ export async function handleCastButton(ctx, interaction, [pollIdRaw, choice]) {
 
   // Public counts + everyone-has-voted early close (Q2: non-bot members).
   await refreshPollCounts(ctx, interaction.guild, poll).catch(() => {});
-  const eligible = await eligibleVoterCount(interaction.guild).catch(() => null);
+  const eligible = await eligibleVoterCount(ctx.db, interaction.guild).catch(() => null);
   if (eligible != null && countVoters(ctx.db, poll.id) >= eligible && ctx.closeDuePoll) {
     await ctx.closeDuePoll(poll);
   }

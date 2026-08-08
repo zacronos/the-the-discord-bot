@@ -224,7 +224,7 @@ test('casting does not close early while eligible voters remain, and bots never 
   await handleCastButton(ctx, fakeInteraction({ guild: fakeGuild(3) }), [String(pollA.id), 'yes']);
   assert.deepEqual(closed, [], 'one of three voting must not close the poll');
 
-  clearEligibilityCache();
+  clearEligibilityCache(db); // also drop the persisted snapshot for this guild
   const pollB = makePoll(db, { subject: 'Grace' });
   const message = { edits: [], edit: async (p) => message.edits.push(p) };
   const channel = { id: 'chan-poll', messages: { fetch: async () => message } };

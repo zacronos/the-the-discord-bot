@@ -45,6 +45,12 @@ CREATE TABLE IF NOT EXISTS app_state (
   key TEXT PRIMARY KEY,
   value TEXT
 );
+CREATE TABLE IF NOT EXISTS member_cache (
+  guild_id TEXT PRIMARY KEY,
+  members_json TEXT NOT NULL,  -- [[memberId, isBot], ...]
+  eligible_count INTEGER NOT NULL,
+  expires_at INTEGER NOT NULL
+);
 CREATE TABLE IF NOT EXISTS scheduled_deletions (
   channel_id TEXT PRIMARY KEY,
   guild_id TEXT NOT NULL,

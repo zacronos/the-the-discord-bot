@@ -226,8 +226,9 @@ If `hard-no-weight` is `veto`, a single Hard no fails the poll outright.
 Otherwise the poll **passes when the point total at poll closing is at
 least the configured threshold** (settable separately per poll type) —
 either a literal points total, or a percent of the server's current
-non-bot members (evaluated at close time; votes from members who left the
-server are dropped). Reaching the threshold exactly counts as passing.
+non-bot members (evaluated at close time from a member snapshot the bot
+refreshes at most hourly — Discord rate-limits member fetching; votes from
+members who left the server are dropped). Reaching the threshold exactly counts as passing.
 **A poll that received no votes at all never passes.** If the member count
 can't be determined when a percent-threshold poll comes due, the close is
 postponed to the next sweep rather than decided on bad data.

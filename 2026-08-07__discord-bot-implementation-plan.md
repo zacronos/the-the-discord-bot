@@ -285,6 +285,8 @@ Native Windows Task Scheduler logon-trigger task: no third-party binary (NSSM) o
 
 ## Post-plan change log
 
+- [X] 2026-08-08 (owner request): the shared member snapshot's TTL was raised from 10 minutes to 1 hour, and the snapshot (member ids + bot flags + eligible count) is persisted in a new `member_cache` sqlite table with its expiration timestamp, so restarts no longer re-spend the rate-limited REQUEST_GUILD_MEMBERS budget.
+
 - [X] 2026-08-08 (owner request): black-box test-gap review (subagent read README + tests only) yielded 15 new tests; two real defects surfaced and were fixed — ballots now reject interactions from a different guild, and the README's worked example arithmetic was corrected.
 - [X] 2026-08-08 (owner request): third poll type — **channel deletion**. Own threshold (`pass-threshold poll-type:channel-deletion`; `all` covers every type; disabled until a threshold resolves), nominees restricted to channels inside the configured permanent categories, and on pass the channel is scheduled for deletion at now+24 h rounded up to the wall-clock hour (test mode: +5 min, minute-rounded), announced in the channel with the exact day/time via a new `scheduled_deletions` table; the hourly sweep (which also runs at startup, covering offline gaps) performs the deletion.
 

@@ -54,7 +54,7 @@ export async function refreshPollCounts(ctx, guild, poll, { force = false, now =
   const channel = await guild.channels.fetch(poll.channel_id ?? poll.channelId);
   const message = await channel.messages.fetch(poll.message_id);
   const responded = countVoters(ctx.db, poll.id);
-  const eligible = await eligibleVoterCount(guild).catch(() => null);
+  const eligible = await eligibleVoterCount(ctx.db, guild).catch(() => null);
   await message.edit({ embeds: renderPollMessage(poll, { responded, eligible }).embeds });
   return true;
 }

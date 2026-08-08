@@ -99,7 +99,7 @@ export async function closePollPipeline(ctx, poll) {
 
   // Q2: only current members count — drop votes from anyone who left.
   // Shares the cached fetch with the eligibility count below (op8 budget).
-  const members = await fetchGuildMembers(guild, { now }).catch(() => null);
+  const members = await fetchGuildMembers(ctx.db, guild, { now }).catch(() => null);
   if (members) {
     for (const userId of listVoters(ctx.db, poll.id)) {
       if (!members.has(userId)) deleteVote(ctx.db, poll.id, userId);
@@ -107,7 +107,7 @@ export async function closePollPipeline(ctx, poll) {
   }
 
   let eligibilityError = null;
-  const eligible = await eligibleVoterCount(guild, { now }).catch((err) => {
+  const eligible = await eligibleVoterCount(ctx.db, guild, { now }).catch((err) => {
     eligibilityError = err;
     return null;
   });

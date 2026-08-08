@@ -236,7 +236,7 @@ export async function handleCreateModal(ctx, interaction, [typePart]) {
       '⚠️ The configured poll channel no longer exists — an admin needs to run `/ttdb-config poll-channel`.'
     );
   }
-  const eligible = await eligibleVoterCount(interaction.guild).catch(() => null);
+  const eligible = await eligibleVoterCount(ctx.db, interaction.guild).catch(() => null);
   const message = await pollChannel.send(renderPollMessage(poll, { responded: 0, eligible }));
   setMessageId(ctx.db, poll.id, message.id);
   poll.message_id = message.id;
