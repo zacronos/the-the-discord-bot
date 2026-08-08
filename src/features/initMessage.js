@@ -7,7 +7,11 @@ import { createHash } from 'node:crypto';
 import { ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder } from 'discord.js';
 import { buildId } from '../discord/customId.js';
 import { getConfig, setConfig } from '../store/guildConfig.js';
-import { missingRequiredSettings } from './configCommands.js';
+import {
+  formatThreshold,
+  missingRequiredSettings,
+  thresholdFor,
+} from './configCommands.js';
 
 export const INIT_MARKER = 'ttdb-init-v1';
 
@@ -27,19 +31,40 @@ const BUTTONS = [
   },
 ];
 
+// How votes become points. Config-derived: changing hard-no-weight changes
+// this text, which changes the content hash, which edits stored messages.
+function pointsParagraph(cfg) {
+  const hardNo =
+    cfg?.hard_no_weight == null || cfg.hard_no_weight === 'veto'
+      ? 'a single **Hard no** vetoes the poll — it fails outright'
+      : `a **Hard no** counts as **${cfg.hard_no_weight}** toward the point total`;
+  return `When a poll closes, votes are totaled as points: **Yes!** = +1, **No** = −1, **Abstain** = 0, and ${hardNo}.`;
+}
+
+// The currently-configured pass thresholds, one bullet per poll type.
+function thresholdList(cfg) {
+  const line = (label, spec) => `• ${label}: ${spec ? `**${formatThreshold(spec)}**` : '*not set*'}`;
+  return [
+    '**Current pass thresholds** — the point total at poll closing must be at least:',
+    line('Invite polls', thresholdFor(cfg, 'invite')),
+    line('Channel-permanence polls', thresholdFor(cfg, 'permanent_channel')),
+  ].join('\n');
+}
+
 // Deterministic fingerprint of everything user-visible in the message. The
 // footer itself is excluded (it contains this hash).
-const contentHash = () =>
+const contentHash = (description) =>
   createHash('sha256')
-    .update(JSON.stringify([TITLE, DESCRIPTION, BUTTONS.map((b) => [b.customId, b.label, b.style])]))
+    .update(JSON.stringify([TITLE, description, BUTTONS.map((b) => [b.customId, b.label, b.style])]))
     .digest('hex')
     .slice(0, 8);
 
-export function buildInitMessage() {
+export function buildInitMessage(cfg = {}) {
+  const description = [DESCRIPTION, pointsParagraph(cfg), thresholdList(cfg)].join('\n\n');
   const embed = new EmbedBuilder()
     .setTitle(TITLE)
-    .setDescription(DESCRIPTION)
-    .setFooter({ text: `${INIT_MARKER} ${contentHash()}` });
+    .setDescription(description)
+    .setFooter({ text: `${INIT_MARKER} ${contentHash(description)}` });
   const row = new ActionRowBuilder().addComponents(
     BUTTONS.map((b) =>
       new ButtonBuilder().setCustomId(b.customId).setLabel(b.label).setStyle(b.style)
@@ -58,7 +83,7 @@ export async function ensureInitMessage(ctx, guild) {
   let cfg = getConfig(db, guild.id);
   if (!cfg || missingRequiredSettings(cfg).length > 0) return null;
 
-  const desired = buildInitMessage();
+  const desired = buildInitMessage(cfg);
   const desiredFooter = desired.embeds[0].data.footer.text;
   const footerOf = (message) => message.embeds?.[0]?.footer?.text ?? '';
   const syncContent = async (message) => {

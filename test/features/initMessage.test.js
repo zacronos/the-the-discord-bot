@@ -12,7 +12,7 @@ const FULL_CONFIG = {
   permanent_category_id: 'cat-1',
 };
 
-const currentFooter = () => buildInitMessage().embeds[0].data.footer.text;
+const currentFooter = (cfg = FULL_CONFIG) => buildInitMessage(cfg).embeds[0].data.footer.text;
 
 function fakeMessage({ id, authorId = 'bot-user', footer = INIT_MARKER } = {}) {
   return {
@@ -71,8 +71,42 @@ function fakeGuild({ id = 'g1', channels = [] } = {}) {
   };
 }
 
+test('the init message explains point totaling and its text tracks the hard-no setting', () => {
+  const veto = buildInitMessage(FULL_CONFIG); // hard_no_weight: 'veto'
+  assert.match(veto.embeds[0].data.description, /votes are totaled as points/);
+  assert.match(veto.embeds[0].data.description, /\*\*Yes!\*\* = \+1, \*\*No\*\* = −1, \*\*Abstain\*\* = 0/);
+  assert.match(veto.embeds[0].data.description, /vetoes the poll/);
+
+  const minus3 = buildInitMessage({ ...FULL_CONFIG, hard_no_weight: '-3' });
+  assert.match(minus3.embeds[0].data.description, /counts as \*\*-3\*\* toward the point total/);
+  assert.notEqual(
+    veto.embeds[0].data.footer.text,
+    minus3.embeds[0].data.footer.text,
+    'different hard-no values hash differently, so a stored message gets edited on change'
+  );
+});
+
+test('the init message ends with the per-poll-type thresholds and tracks changes to them', () => {
+  const base = buildInitMessage(FULL_CONFIG); // legacy shared threshold: 3 votes
+  const description = base.embeds[0].data.description;
+  assert.match(description, /• Invite polls: \*\*3 points total\*\*/);
+  assert.match(description, /• Channel-permanence polls: \*\*3 points total\*\*/);
+
+  const changed = buildInitMessage({
+    ...FULL_CONFIG,
+    threshold_type_permchan: 'percent',
+    threshold_value_permchan: 50,
+  });
+  assert.match(changed.embeds[0].data.description, /• Channel-permanence polls: \*\*50% of current members\*\*/);
+  assert.notEqual(
+    base.embeds[0].data.footer.text,
+    changed.embeds[0].data.footer.text,
+    'threshold changes re-hash the message, so stored copies get edited'
+  );
+});
+
 test('buildInitMessage carries the marker footer with a content hash, and both start buttons', () => {
-  const payload = buildInitMessage();
+  const payload = buildInitMessage(FULL_CONFIG);
   assert.match(
     payload.embeds[0].data.footer.text,
     new RegExp(`^${INIT_MARKER} [0-9a-f]{8}$`),
