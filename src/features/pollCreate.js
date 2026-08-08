@@ -32,9 +32,30 @@ export function buildCreationExplanation() {
   ].join('\n\n');
 }
 
+// Deletion candidates: channels inside the configured permanent categories.
+// Discord's channel select cannot filter by category, so the dropdown is a
+// bot-built string select of exactly these channels (25-option cap).
+export function deletableChannelOptions(cfg, allChannels) {
+  const allowed = new Set(
+    [cfg.permanent_category_id, cfg.permanent_category_text_id, cfg.permanent_category_voice_id].filter(Boolean)
+  );
+  const options = [];
+  for (const channel of allChannels.values()) {
+    if (!channel || !allowed.has(channel.parentId)) continue;
+    const label = channel.type === 2 ? `🔊 ${channel.name}` : `#${channel.name}`;
+    options.push({ label, value: channel.id });
+  }
+  options.sort((a, b) => a.label.localeCompare(b.label));
+  if (options.length > 25) {
+    console.warn(`[ttdb] deletion dropdown truncated to 25 of ${options.length} eligible channels`);
+    return options.slice(0, 25);
+  }
+  return options;
+}
+
 // Raw component payload (Components V2): 10 = Text Display, 18 = Label,
 // 4 = Text Input, 3 = String Select, 8 = Channel Select (0 = text channels).
-export function buildCreateModal(typePart, cfg, testMode = false) {
+export function buildCreateModal(typePart, cfg, testMode = false, { channelOptions = [] } = {}) {
   const subjectLabel =
     typePart === 'invite'
       ? {
@@ -42,14 +63,17 @@ export function buildCreateModal(typePart, cfg, testMode = false) {
           label: 'Who should we invite?',
           component: { type: 4, custom_id: 'name', style: 1, min_length: 1, max_length: 80, required: true },
         }
-      : {
-          type: 18,
-          label:
-            typePart === 'delchan'
-              ? 'Which channel should be deleted?'
-              : 'Which channel should become permanent?',
-          component: { type: 8, custom_id: 'channel', channel_types: [0, 2], required: true },
-        };
+      : typePart === 'delchan'
+        ? {
+            type: 18,
+            label: 'Which channel should be deleted?',
+            component: { type: 3, custom_id: 'channel', required: true, options: channelOptions },
+          }
+        : {
+            type: 18,
+            label: 'Which channel should become permanent?',
+            component: { type: 8, custom_id: 'channel', channel_types: [0, 2], required: true },
+          };
   const TITLES = {
     invite: 'Start a vote: invite someone',
     permchan: 'Start a vote: channel permanence',
@@ -118,11 +142,22 @@ export async function handleStartButton(ctx, interaction, [typePart]) {
       `⚠️ Only members with <@&${cfg.poll_starter_role_id}> can start polls on this server.`
     );
   }
-  if (typePart === 'delchan' && !thresholdFor(cfg, 'delete_channel')) {
-    return replyEphemeral(
-      interaction,
-      '⚠️ Channel-deletion polls aren\'t configured yet — an admin must run `/ttdb-config pass-threshold poll-type:channel-deletion` first.'
-    );
+  if (typePart === 'delchan') {
+    if (!thresholdFor(cfg, 'delete_channel')) {
+      return replyEphemeral(
+        interaction,
+        '⚠️ Channel-deletion polls aren\'t configured yet — an admin must run `/ttdb-config pass-threshold poll-type:channel-deletion` first.'
+      );
+    }
+    const allChannels = await interaction.guild.channels.fetch();
+    const channelOptions = deletableChannelOptions(cfg, allChannels);
+    if (channelOptions.length === 0) {
+      return replyEphemeral(
+        interaction,
+        '⚠️ There are no channels in the permanent categories to delete.'
+      );
+    }
+    return interaction.showModal(buildCreateModal(typePart, cfg, ctx.env?.testMode, { channelOptions }));
   }
   await interaction.showModal(buildCreateModal(typePart, cfg, ctx.env?.testMode));
 }

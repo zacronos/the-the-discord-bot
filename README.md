@@ -200,8 +200,9 @@ reports the pass with a note asking an admin to finish the move manually.
 
 ### Start a vote on deleting a channel
 
-Asks which channel should be deleted — only channels **inside the
-configured permanent categories** can be nominated. This poll type has its
+Asks which channel should be deleted — the dropdown lists **only the
+channels inside the configured permanent categories** (text prefixed `#`,
+voice prefixed 🔊; Discord select menus cap the list at 25). This poll type has its
 own `pass-threshold` (set it with `poll-type:channel-deletion`, or cover
 everything with `poll-type:all`); until one is configured, its button
 explains what an admin needs to run. If the poll passes, the channel is

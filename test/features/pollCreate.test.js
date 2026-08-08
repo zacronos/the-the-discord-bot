@@ -30,10 +30,10 @@ function fakeGuild() {
       return { id: `msg-${sent.length}` };
     },
   };
-  const targetChannel = { id: 'chan-target', parentId: null };
-  const inCategory = { id: 'chan-owned', parentId: 'cat-1' };
-  const voiceChannel = { id: 'chan-voice', type: 2, parentId: null };
-  const voiceOwned = { id: 'chan-voice-owned', type: 2, parentId: 'cat-v' };
+  const targetChannel = { id: 'chan-target', name: 'target', parentId: null };
+  const inCategory = { id: 'chan-owned', name: 'perm-chat', parentId: 'cat-1' };
+  const voiceChannel = { id: 'chan-voice', name: 'lounge', type: 2, parentId: null };
+  const voiceOwned = { id: 'chan-voice-owned', name: 'perm-voice', type: 2, parentId: 'cat-v' };
   const byId = new Map([
     ['chan-poll', pollChannel],
     ['chan-target', targetChannel],
@@ -46,6 +46,7 @@ function fakeGuild() {
     pollChannel,
     channels: {
       fetch: async (id) => {
+        if (id === undefined) return byId; // full listing
         const found = byId.get(id);
         if (!found) throw new Error('Unknown Channel');
         return found;
@@ -271,8 +272,60 @@ test('channel-deletion polls need their own threshold before the button works', 
   await handleStartButton({ db }, allowed, ['delchan']);
   assert.equal(allowed.shown.length, 1);
   assert.equal(allowed.shown[0].custom_id, 'ttdb:create:delchan');
-  const channel = allowed.shown[0].components.find((c) => c.component?.custom_id === 'channel');
-  assert.deepEqual(channel.component.channel_types, [0, 2]);
+  const select = allowed.shown[0].components.find((c) => c.component?.custom_id === 'channel');
+  assert.equal(select.component.type, 3, 'a bot-built option list, not a raw channel select');
+  assert.deepEqual(
+    select.component.options.map((o) => o.value),
+    ['chan-owned'],
+    'only the configured category is offered with this config'
+  );
+});
+
+test('the deletion dropdown lists channels from both permanent categories, labeled by kind', async (t) => {
+  const db = tempDb(t);
+  setConfig(db, 'g1', { ...FULL_CONFIG, permanent_category_voice_id: 'cat-v' });
+  const interaction = fakeInteraction({ guild: fakeGuild() });
+  await handleStartButton({ db }, interaction, ['delchan']);
+
+  const select = interaction.shown[0].components.find((c) => c.component?.custom_id === 'channel');
+  assert.deepEqual(
+    select.component.options,
+    [
+      { label: '#perm-chat', value: 'chan-owned' },
+      { label: '🔊 perm-voice', value: 'chan-voice-owned' },
+    ],
+    'text and voice members of the permanent categories, nothing else'
+  );
+});
+
+test('the deletion button refuses when the permanent categories are empty', async (t) => {
+  const db = tempDb(t);
+  setConfig(db, 'g1', { ...FULL_CONFIG, permanent_category_id: 'cat-empty' });
+  const interaction = fakeInteraction({ guild: fakeGuild() });
+  await handleStartButton({ db }, interaction, ['delchan']);
+  assert.equal(interaction.shown.length, 0);
+  assert.match(interaction.replies[0].content, /no channels in the permanent categories/i);
+});
+
+test('the deletion dropdown caps at the 25-option component limit', async (t) => {
+  const db = tempDb(t);
+  setConfig(db, 'g1', FULL_CONFIG);
+  const byId = new Map(
+    Array.from({ length: 30 }, (_, i) => [
+      `chan-${i}`,
+      { id: `chan-${i}`, name: `room-${String(i).padStart(2, '0')}`, parentId: 'cat-1' },
+    ])
+  );
+  const guild = {
+    id: 'g1',
+    channels: { fetch: async (id) => (id === undefined ? byId : byId.get(id)) },
+    members: { fetch: async () => new Map() },
+  };
+  const interaction = fakeInteraction({ guild });
+  await handleStartButton({ db }, interaction, ['delchan']);
+
+  const select = interaction.shown[0].components.find((c) => c.component?.custom_id === 'channel');
+  assert.equal(select.component.options.length, 25);
 });
 
 test('only channels inside the permanent categories can be nominated for deletion', async (t) => {
