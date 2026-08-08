@@ -8,7 +8,13 @@ const FIELDS = new Set([
   'hard_no_weight',
   'threshold_type',
   'threshold_value',
+  'threshold_type_invite',
+  'threshold_value_invite',
+  'threshold_type_permchan',
+  'threshold_value_permchan',
   'permanent_category_id',
+  'permanent_category_text_id',
+  'permanent_category_voice_id',
   'invite_channel_id',
   'poll_starter_role_id',
 ]);

@@ -25,6 +25,16 @@ const CHECKS = [
     label: 'permanent category',
     perms: [PermissionFlagsBits.ManageChannels, PermissionFlagsBits.ManageRoles],
   },
+  {
+    field: 'permanent_category_text_id',
+    label: 'permanent category (text)',
+    perms: [PermissionFlagsBits.ManageChannels, PermissionFlagsBits.ManageRoles],
+  },
+  {
+    field: 'permanent_category_voice_id',
+    label: 'permanent category (voice)',
+    perms: [PermissionFlagsBits.ManageChannels, PermissionFlagsBits.ManageRoles],
+  },
 ];
 
 export async function auditGuildPermissions(ctx, guild) {

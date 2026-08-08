@@ -143,6 +143,37 @@ test('a failing action still reports success with a manual-follow-up note', asyn
   assert.match(initiator.content, /admin/i);
 });
 
+test('per-poll-type thresholds are honored at close', async (t) => {
+  const { db, ctx, poll } = makeWorld(t, {
+    config: {
+      ...CONFIG,
+      hard_no_weight: '-2',
+      threshold_type: null,
+      threshold_value: null,
+      threshold_type_invite: 'count',
+      threshold_value_invite: 1,
+      threshold_type_permchan: 'count',
+      threshold_value_permchan: 5,
+    },
+  });
+  castVote(db, poll.id, 'u1', 'yes');
+  await closePollPipeline(ctx, poll);
+  assert.equal(getPoll(db, poll.id).status, 'passed', 'invite threshold is 1');
+
+  const perm = createPoll(db, {
+    guildId: 'g1',
+    type: 'permanent_channel',
+    subject: 'chan-x',
+    initiatorId: 'u1',
+    channelId: 'chan-poll',
+    closesAt: 5_000,
+  });
+  setMessageId(db, perm.id, 'msg-2');
+  castVote(db, perm.id, 'u1', 'yes');
+  await closePollPipeline(ctx, perm);
+  assert.equal(getPoll(db, perm.id).status, 'failed', 'permanence threshold is 5');
+});
+
 test('votes from members who left are dropped before tallying (Q2)', async (t) => {
   const { db, ctx, poll } = makeWorld(t, {
     memberIds: ['u1', 'u2'], // u3 left the server

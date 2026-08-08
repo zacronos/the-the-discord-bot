@@ -4,7 +4,13 @@ import { MessageFlags } from 'discord.js';
 import { buildId } from '../discord/customId.js';
 import { getConfig } from '../store/guildConfig.js';
 import { createPoll, listOpen, setMessageId } from '../store/polls.js';
-import { formatThreshold, missingRequiredSettings } from './configCommands.js';
+import {
+  channelKind,
+  formatThreshold,
+  missingRequiredSettings,
+  permanentCategoryFor,
+  thresholdFor,
+} from './configCommands.js';
 import { durationSelectOptions, isAllowedDurationSeconds } from './durations.js';
 import { eligibleVoterCount } from './eligibility.js';
 import { renderPollMessage } from './pollMessage.js';
@@ -16,14 +22,15 @@ const POLL_TYPES = { invite: 'invite', permchan: 'permanent_channel' };
 const replyEphemeral = (interaction, content) =>
   interaction.reply({ content, flags: MessageFlags.Ephemeral });
 
-export function buildCreationExplanation(cfg) {
+export function buildCreationExplanation(cfg, pollType) {
   const weight =
     cfg.hard_no_weight === 'veto'
       ? 'a **veto** (a single one fails the poll)'
       : `**${cfg.hard_no_weight}** on the vote total`;
+  const threshold = thresholdFor(cfg, pollType);
   return [
     'This starts an **anonymous** poll in the poll channel, open to everyone on the server. Nobody can see how anyone voted.',
-    `The poll closes after the duration you pick, rounded up to the next hour on the clock — or as soon as everyone on the server has voted. At close: Yes = +1, No = −1, Abstain = 0, and a Hard no counts as ${weight}. The poll passes when the total reaches **${formatThreshold(cfg)}**. The result goes privately to you by DM.`,
+    `The poll closes after the duration you pick, rounded up to the next hour on the clock — or as soon as everyone on the server has voted. At close: Yes = +1, No = −1, Abstain = 0, and a Hard no counts as ${weight}. The poll passes when the total reaches **${threshold ? formatThreshold(threshold) : 'the configured threshold'}**. The result goes privately to you by DM.`,
     '⚠️ A shorter poll may reach a result quicker, but leaves less time for everyone to see it and vote — avoid shorter durations unless there is a real reason for urgency.',
   ].join('\n\n');
 }
@@ -41,13 +48,13 @@ export function buildCreateModal(typePart, cfg, testMode = false) {
       : {
           type: 18,
           label: 'Which channel should become permanent?',
-          component: { type: 8, custom_id: 'channel', channel_types: [0], required: true },
+          component: { type: 8, custom_id: 'channel', channel_types: [0, 2], required: true },
         };
   return {
     custom_id: buildId('create', typePart),
     title: typePart === 'invite' ? 'Start a vote: invite someone' : 'Start a vote: channel permanence',
     components: [
-      { type: 10, content: buildCreationExplanation(cfg) },
+      { type: 10, content: buildCreationExplanation(cfg, POLL_TYPES[typePart]) },
       subjectLabel,
       {
         type: 18,
@@ -142,7 +149,17 @@ export async function handleCreateModal(ctx, interaction, [typePart]) {
     if (!channel) {
       return replyEphemeral(interaction, '⚠️ I could not find that channel.');
     }
-    if (channel.parentId === cfg.permanent_category_id) {
+    const kind = channelKind(channel);
+    const categoryId = permanentCategoryFor(cfg, kind);
+    if (!categoryId) {
+      return replyEphemeral(
+        interaction,
+        kind === 'voice'
+          ? '⚠️ Voice channels can\'t be nominated yet — an admin must set `/ttdb-config permanent-category kind:voice` first.'
+          : '⚠️ No permanent category is configured — an admin must run `/ttdb-config permanent-category`.'
+      );
+    }
+    if (channel.parentId === categoryId) {
       return replyEphemeral(interaction, `⚠️ <#${channelId}> is already in the permanent category.`);
     }
     subject = channelId;

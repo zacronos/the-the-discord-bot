@@ -46,6 +46,43 @@ test('fails clearly when the voted-on channel no longer exists', async (t) => {
   await assert.rejects(() => permanentChannelAction({ db }, guild, POLL), /channel no longer exists/i);
 });
 
+test('voice channels move into the voice category, text into the text category (autodetected)', async (t) => {
+  const db = tempDb(t);
+  setConfig(db, 'g1', { permanent_category_text_id: 'cat-t', permanent_category_voice_id: 'cat-v' });
+  const moves = [];
+  const textChannel = { id: 'chan-text', setParent: async (id, opts) => moves.push(['chan-text', id, opts]) };
+  const voiceChannel = {
+    id: 'chan-voice',
+    type: 2,
+    setParent: async (id, opts) => moves.push(['chan-voice', id, opts]),
+  };
+  const guild = fakeGuild({
+    'chan-text': textChannel,
+    'chan-voice': voiceChannel,
+    'cat-t': { id: 'cat-t' },
+    'cat-v': { id: 'cat-v' },
+  });
+
+  await permanentChannelAction({ db }, guild, { id: 1, type: 'permanent_channel', subject: 'chan-text' });
+  await permanentChannelAction({ db }, guild, { id: 2, type: 'permanent_channel', subject: 'chan-voice' });
+  assert.deepEqual(moves.map((m) => [m[0], m[1]]), [['chan-text', 'cat-t'], ['chan-voice', 'cat-v']]);
+  assert.ok(moves.every((m) => m[2].lockPermissions === true));
+});
+
+test('a voice channel with no voice category configured fails clearly', async (t) => {
+  const db = tempDb(t);
+  setConfig(db, 'g1', { permanent_category_id: 'cat-1' }); // legacy/text only
+  const guild = fakeGuild({
+    'chan-voice': { id: 'chan-voice', type: 2, setParent: async () => {} },
+    'cat-1': { id: 'cat-1' },
+  });
+
+  await assert.rejects(
+    () => permanentChannelAction({ db }, guild, { id: 3, type: 'permanent_channel', subject: 'chan-voice' }),
+    /voice/i
+  );
+});
+
 test('fails clearly when the configured category no longer exists', async (t) => {
   const db = tempDb(t);
   setConfig(db, 'g1', { permanent_category_id: 'cat-gone' });

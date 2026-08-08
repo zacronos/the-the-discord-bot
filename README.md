@@ -90,8 +90,8 @@ settings and refuse to start until all four required ones have values.
 |---|---|---|
 | `poll-channel channel:<#channel>` | yes | The text channel polls are posted in |
 | `hard-no-weight weight:<-2 \| -3 \| -5 \| -10 \| veto>` | yes | How strongly a "Hard no" vote counts against a poll's total; `veto` means a single hard no fails the poll |
-| `pass-threshold value:<number> unit:<votes \| percent>` | yes | The vote total needed to pass: a literal total, or a percent of the server's current (non-bot) members |
-| `permanent-category category:<category>` | yes | The category a channel moves into when a make-it-permanent poll passes |
+| `pass-threshold value:<number> unit:<votes \| percent> poll-type:<invite \| channel-permanence \| both>` | yes | The vote total needed to pass: a literal total, or a percent of the server's current (non-bot) members. `poll-type` (default: both) gives each poll type its own threshold |
+| `permanent-category category:<category> kind:<text \| voice>` | yes (text) | The category a channel moves into when a permanence poll passes. `kind` (default: text) sets separate categories for text and voice channels; until a voice category is set, voice channels can't be nominated |
 | `invite-channel channel:<#channel>` | no | Where invite links from passed invite polls land; unset = the server's system channel |
 | `poll-starter-role role:<@role>` | no | Restrict poll *starting* to one role; unset = anyone. Voting is always open to everyone |
 | `show` | — | Show current settings and anything still missing |
@@ -181,13 +181,15 @@ an admin to create the invite manually.
 
 ### Start a vote on making a channel permanent
 
-Asks which text channel should become permanent (channels already in the
-permanent category can't be nominated) and the poll duration. If the poll
-passes, the bot **moves the channel into the configured
-`permanent-category` and syncs its permission overwrites** with that
-category. If the move fails (category deleted, or the bot lacks Manage
-Channels / Manage Roles), the DM still reports the pass with a note asking
-an admin to finish the move manually.
+Asks which channel — text or voice — should become permanent (channels
+already in their permanent category can't be nominated) and the poll
+duration. If the poll passes, the bot **moves the channel into the
+permanent category for its kind** (text channels into the `kind:text`
+category, voice channels into the `kind:voice` one — autodetected) **and
+syncs its permission overwrites** with it. Voice channels can only be
+nominated once a voice category is configured. If the move fails (category
+deleted, or the bot lacks Manage Channels / Manage Roles), the DM still
+reports the pass with a note asking an admin to finish the move manually.
 
 ## How results are decided
 
@@ -203,9 +205,9 @@ hour), or immediately once everyone has voted. Votes are then counted:
 
 If `hard-no-weight` is `veto`, a single Hard no fails the poll outright.
 Otherwise the poll **passes when the total reaches the configured
-threshold** — either a literal vote total, or a percent of the server's
-current non-bot members (evaluated at close time; votes from members who
-left the server are dropped). Reaching the threshold exactly counts as
+threshold** (settable separately per poll type) — either a literal vote
+total, or a percent of the server's current non-bot members (evaluated at
+close time; votes from members who left the server are dropped). Reaching the threshold exactly counts as
 passing. Example with `pass-threshold 50 percent` in a 10-person server:
 6 Yes + 1 No + 1 Hard no (−3) = total 0 → fails; 8 Yes + 2 Abstain =
 total 8 → passes (target 5).

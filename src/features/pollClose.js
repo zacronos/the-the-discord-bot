@@ -12,6 +12,7 @@ import {
   listVoters,
   listVotersByChoice,
 } from '../store/votes.js';
+import { thresholdFor } from './configCommands.js';
 import { eligibleVoterCount } from './eligibility.js';
 
 const describePoll = (poll) =>
@@ -104,7 +105,8 @@ export async function closePollPipeline(ctx, poll) {
   const result = tallyPoll({
     counts,
     hardNoWeight: cfg.hard_no_weight,
-    threshold: { type: cfg.threshold_type, value: cfg.threshold_value },
+    // Per-poll-type threshold; an unresolvable one fails safe (unpassable).
+    threshold: thresholdFor(cfg, poll.type) ?? { type: 'count', value: Number.POSITIVE_INFINITY },
     eligibleCount: eligible,
   });
   const vetoerIds = result.outcome === 'vetoed' ? listVotersByChoice(ctx.db, poll.id, 'hard_no') : [];

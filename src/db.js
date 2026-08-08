@@ -11,9 +11,15 @@ CREATE TABLE IF NOT EXISTS guild_config (
   init_channel_id TEXT,           -- where the init message actually lives
 
   hard_no_weight TEXT,            -- '-2'|'-3'|'-5'|'-10'|'veto'
-  threshold_type TEXT,            -- 'count'|'percent'
-  threshold_value REAL,
-  permanent_category_id TEXT,
+  threshold_type TEXT,            -- legacy shared threshold: 'count'|'percent'
+  threshold_value REAL,           -- (per-type columns below take precedence)
+  threshold_type_invite TEXT,
+  threshold_value_invite REAL,
+  threshold_type_permchan TEXT,
+  threshold_value_permchan REAL,
+  permanent_category_id TEXT,     -- legacy; text channels fall back to it
+  permanent_category_text_id TEXT,
+  permanent_category_voice_id TEXT,
   invite_channel_id TEXT,         -- optional (Q3); default landing = system channel
   poll_starter_role_id TEXT,      -- optional (Q6); null = anyone may start polls
   updated_at INTEGER NOT NULL
@@ -55,7 +61,15 @@ export function openDb(path) {
   db.exec('PRAGMA journal_mode = WAL;');
   db.exec(SCHEMA);
   // Column additions for databases created by older schema versions.
-  for (const alter of ['ALTER TABLE guild_config ADD COLUMN init_channel_id TEXT']) {
+  for (const alter of [
+    'ALTER TABLE guild_config ADD COLUMN init_channel_id TEXT',
+    'ALTER TABLE guild_config ADD COLUMN threshold_type_invite TEXT',
+    'ALTER TABLE guild_config ADD COLUMN threshold_value_invite REAL',
+    'ALTER TABLE guild_config ADD COLUMN threshold_type_permchan TEXT',
+    'ALTER TABLE guild_config ADD COLUMN threshold_value_permchan REAL',
+    'ALTER TABLE guild_config ADD COLUMN permanent_category_text_id TEXT',
+    'ALTER TABLE guild_config ADD COLUMN permanent_category_voice_id TEXT',
+  ]) {
     try {
       db.exec(alter);
     } catch {

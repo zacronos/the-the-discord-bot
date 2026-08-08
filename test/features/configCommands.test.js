@@ -75,7 +75,32 @@ test('missingRequiredSettings names each unset required subcommand', () => {
       threshold_value: 0, // zero is a valid configured value
       permanent_category_id: 'cat1',
     }),
-    []
+    [],
+    'legacy shared columns satisfy the per-type requirements (fallback)'
+  );
+  assert.deepEqual(
+    missingRequiredSettings({
+      poll_channel_id: 'c1',
+      hard_no_weight: 'veto',
+      threshold_type_invite: 'count',
+      threshold_value_invite: 1,
+      threshold_type_permchan: 'percent',
+      threshold_value_permchan: 50,
+      permanent_category_text_id: 'cat-t',
+    }),
+    [],
+    'per-type columns alone are sufficient'
+  );
+  assert.deepEqual(
+    missingRequiredSettings({
+      poll_channel_id: 'c1',
+      hard_no_weight: 'veto',
+      threshold_type_invite: 'count',
+      threshold_value_invite: 1,
+      permanent_category_voice_id: 'cat-v', // voice alone doesn't satisfy the text requirement
+    }),
+    ['pass-threshold', 'permanent-category'],
+    'one-type thresholds and voice-only categories are incomplete'
   );
 });
 
@@ -106,23 +131,70 @@ test('poll-channel warns about missing bot permissions but still saves', async (
   assert.match(lastReply(interaction).content, /Mention Everyone/);
 });
 
-test('pass-threshold stores votes as count and percent as percent', async (t) => {
+test('pass-threshold with no poll-type sets both poll types', async (t) => {
   const db = tempDb(t);
   await handleConfigCommand(
     { db },
     fakeInteraction({ sub: 'pass-threshold', opts: { value: 3, unit: 'votes' } })
   );
   let cfg = getConfig(db, 'g1');
-  assert.equal(cfg.threshold_type, 'count');
-  assert.equal(cfg.threshold_value, 3);
+  assert.equal(cfg.threshold_type_invite, 'count');
+  assert.equal(cfg.threshold_value_invite, 3);
+  assert.equal(cfg.threshold_type_permchan, 'count');
+  assert.equal(cfg.threshold_value_permchan, 3);
 
   await handleConfigCommand(
     { db },
     fakeInteraction({ sub: 'pass-threshold', opts: { value: 50, unit: 'percent' } })
   );
   cfg = getConfig(db, 'g1');
-  assert.equal(cfg.threshold_type, 'percent');
-  assert.equal(cfg.threshold_value, 50);
+  assert.equal(cfg.threshold_type_invite, 'percent');
+  assert.equal(cfg.threshold_value_invite, 50);
+  assert.equal(cfg.threshold_type_permchan, 'percent');
+  assert.equal(cfg.threshold_value_permchan, 50);
+});
+
+test('pass-threshold scoped to one poll type leaves the other alone', async (t) => {
+  const db = tempDb(t);
+  await handleConfigCommand(
+    { db },
+    fakeInteraction({ sub: 'pass-threshold', opts: { value: 2, unit: 'votes', 'poll-type': 'invite' } })
+  );
+  let cfg = getConfig(db, 'g1');
+  assert.equal(cfg.threshold_value_invite, 2);
+  assert.equal(cfg.threshold_type_permchan, null, 'permanence threshold untouched');
+  assert.ok(missingRequiredSettings(cfg).includes('pass-threshold'), 'other type still unresolved');
+
+  await handleConfigCommand(
+    { db },
+    fakeInteraction({
+      sub: 'pass-threshold',
+      opts: { value: 60, unit: 'percent', 'poll-type': 'channel-permanence' },
+    })
+  );
+  cfg = getConfig(db, 'g1');
+  assert.equal(cfg.threshold_type_permchan, 'percent');
+  assert.equal(cfg.threshold_value_invite, 2, 'invite threshold preserved');
+  assert.ok(!missingRequiredSettings(cfg).includes('pass-threshold'));
+});
+
+test('permanent-category defaults to text channels; kind voice sets the voice category', async (t) => {
+  const db = tempDb(t);
+  await handleConfigCommand(
+    { db },
+    fakeInteraction({ sub: 'permanent-category', opts: { category: { id: 'cat-t' } } })
+  );
+  let cfg = getConfig(db, 'g1');
+  assert.equal(cfg.permanent_category_text_id, 'cat-t');
+  assert.equal(cfg.permanent_category_voice_id, null);
+
+  await handleConfigCommand(
+    { db },
+    fakeInteraction({ sub: 'permanent-category', opts: { category: { id: 'cat-v' }, kind: 'voice' } })
+  );
+  cfg = getConfig(db, 'g1');
+  assert.equal(cfg.permanent_category_voice_id, 'cat-v');
+  assert.equal(cfg.permanent_category_text_id, 'cat-t', 'text category preserved');
 });
 
 test('pass-threshold rejects a percent above 100 and saves nothing', async (t) => {
@@ -184,7 +256,7 @@ test('an ensureInitMessage failure still saves the setting and reports the probl
   const interaction = fakeInteraction({ sub: 'permanent-category', opts: { category: { id: 'cat1' } } });
   await handleConfigCommand(ctx, interaction);
 
-  assert.equal(getConfig(db, 'g1').permanent_category_id, 'cat1');
+  assert.equal(getConfig(db, 'g1').permanent_category_text_id, 'cat1');
   assert.match(lastReply(interaction).content, /boom/);
 });
 

@@ -80,6 +80,16 @@ export const configCommandDefinition = new SlashCommandBuilder()
             { name: 'percent — of current (non-bot) members', value: 'percent' }
           )
       )
+      .addStringOption((opt) =>
+        opt
+          .setName('poll-type')
+          .setDescription('Which poll type this threshold applies to (default: both)')
+          .addChoices(
+            { name: 'invite polls', value: 'invite' },
+            { name: 'channel-permanence polls', value: 'channel-permanence' },
+            { name: 'both', value: 'both' }
+          )
+      )
   )
   .addSubcommand((sub) =>
     sub
@@ -91,6 +101,15 @@ export const configCommandDefinition = new SlashCommandBuilder()
           .setDescription('The category')
           .addChannelTypes(ChannelType.GuildCategory)
           .setRequired(true)
+      )
+      .addStringOption((opt) =>
+        opt
+          .setName('kind')
+          .setDescription('Which channel kind moves into this category (default: text)')
+          .addChoices(
+            { name: 'text channels', value: 'text' },
+            { name: 'voice channels', value: 'voice' }
+          )
       )
   )
   .addSubcommand((sub) =>
@@ -119,21 +138,47 @@ export const configCommandDefinition = new SlashCommandBuilder()
   .addSubcommand((sub) => sub.setName('show').setDescription('Show current settings'))
   .toJSON();
 
+// Per-type threshold resolution: the per-type columns win, with the legacy
+// shared columns as fallback (kept so pre-existing configs stay valid).
+export function thresholdFor(cfg, pollType) {
+  const [type, value] =
+    pollType === 'invite'
+      ? [cfg?.threshold_type_invite, cfg?.threshold_value_invite]
+      : [cfg?.threshold_type_permchan, cfg?.threshold_value_permchan];
+  if (type != null && value != null) return { type, value };
+  if (cfg?.threshold_type != null && cfg?.threshold_value != null) {
+    return { type: cfg.threshold_type, value: cfg.threshold_value };
+  }
+  return null;
+}
+
+// Per-channel-kind permanent category. Text falls back to the legacy
+// column; voice has no fallback (a voice channel must not silently land in
+// the text category), so voice nominations are refused until it is set.
+export function permanentCategoryFor(cfg, kind) {
+  if (kind === 'voice') return cfg?.permanent_category_voice_id ?? null;
+  return cfg?.permanent_category_text_id ?? cfg?.permanent_category_id ?? null;
+}
+
+export const channelKind = (channel) =>
+  channel?.type === ChannelType.GuildVoice ? 'voice' : 'text';
+
 // Required-config gate (Q8). Returns the /ttdb-config subcommand names still
-// unset; empty array means polls may start.
+// unset; empty array means polls may start. Voice categories are optional —
+// they gate voice nominations, not the whole feature.
 export function missingRequiredSettings(cfg) {
   const missing = [];
   if (!cfg?.poll_channel_id) missing.push('poll-channel');
   if (!cfg?.hard_no_weight) missing.push('hard-no-weight');
-  if (cfg?.threshold_type == null || cfg?.threshold_value == null) missing.push('pass-threshold');
-  if (!cfg?.permanent_category_id) missing.push('permanent-category');
+  if (!thresholdFor(cfg, 'invite') || !thresholdFor(cfg, 'permanent_channel')) {
+    missing.push('pass-threshold');
+  }
+  if (!permanentCategoryFor(cfg, 'text')) missing.push('permanent-category');
   return missing;
 }
 
-export function formatThreshold(cfg) {
-  return cfg.threshold_type === 'percent'
-    ? `${cfg.threshold_value}% of current members`
-    : `${cfg.threshold_value} vote total`;
+export function formatThreshold({ type, value }) {
+  return type === 'percent' ? `${value}% of current members` : `${value} vote total`;
 }
 
 const friendly = (permName) => permName.replaceAll(/([a-z])([A-Z])/g, '$1 $2');
@@ -150,14 +195,18 @@ const replyEphemeral = (interaction, content) =>
 
 function renderShow(cfg = {}) {
   const set = (value, render) => (value == null ? '*not set*' : render(value));
+  const inviteThreshold = thresholdFor(cfg, 'invite');
+  const permThreshold = thresholdFor(cfg, 'permanent_channel');
+  const textCategory = permanentCategoryFor(cfg, 'text');
+  const voiceCategory = permanentCategoryFor(cfg, 'voice');
   const lines = [
     '**The The Bot settings for this server**',
     `• Poll channel (required): ${set(cfg.poll_channel_id, (id) => `<#${id}>`)}`,
     `• Hard-no weight (required): ${set(cfg.hard_no_weight, (w) => (w === 'veto' ? 'veto — a single hard no fails the poll' : w))}`,
-    `• Pass threshold (required): ${
-      cfg.threshold_type == null || cfg.threshold_value == null ? '*not set*' : formatThreshold(cfg)
-    }`,
-    `• Permanent category (required): ${set(cfg.permanent_category_id, (id) => `<#${id}>`)}`,
+    `• Pass threshold — invite polls (required): ${inviteThreshold ? formatThreshold(inviteThreshold) : '*not set*'}`,
+    `• Pass threshold — channel-permanence polls (required): ${permThreshold ? formatThreshold(permThreshold) : '*not set*'}`,
+    `• Permanent category — text channels (required): ${textCategory ? `<#${textCategory}>` : '*not set*'}`,
+    `• Permanent category — voice channels: ${voiceCategory ? `<#${voiceCategory}>` : "*not set* — voice channels can't be nominated"}`,
     `• Invite landing channel: ${set(cfg.invite_channel_id, (id) => `<#${id}>`)}${
       cfg.invite_channel_id ? '' : ' — defaults to the server system channel'
     }`,
@@ -214,18 +263,37 @@ export async function handleConfigCommand(ctx, interaction) {
           '⚠️ A percent threshold above 100 can never pass (the vote total can never exceed the member count). Nothing was saved.'
         );
       }
-      setConfig(db, guildId, {
-        threshold_type: unit === 'percent' ? 'percent' : 'count',
-        threshold_value: value,
-      });
-      lines.push(`Polls now pass when the vote total reaches ${formatThreshold(getConfig(db, guildId))}.`);
+      const scope = interaction.options.getString('poll-type') ?? 'both';
+      const type = unit === 'percent' ? 'percent' : 'count';
+      const patch = {};
+      if (scope === 'invite' || scope === 'both') {
+        patch.threshold_type_invite = type;
+        patch.threshold_value_invite = value;
+      }
+      if (scope === 'channel-permanence' || scope === 'both') {
+        patch.threshold_type_permchan = type;
+        patch.threshold_value_permchan = value;
+      }
+      setConfig(db, guildId, patch);
+      const scopeText =
+        scope === 'both' ? 'Both poll types' : scope === 'invite' ? 'Invite polls' : 'Channel-permanence polls';
+      lines.push(`${scopeText} now pass when the vote total reaches ${formatThreshold({ type, value })}.`);
       saved = true;
       break;
     }
     case 'permanent-category': {
       const category = interaction.options.getChannel('category', true);
-      setConfig(db, guildId, { permanent_category_id: category.id });
-      lines.push(`Channels voted permanent will move into <#${category.id}>.`);
+      const kind = interaction.options.getString('kind') ?? 'text';
+      setConfig(
+        db,
+        guildId,
+        kind === 'voice'
+          ? { permanent_category_voice_id: category.id }
+          : { permanent_category_text_id: category.id }
+      );
+      lines.push(
+        `${kind === 'voice' ? 'Voice' : 'Text'} channels voted permanent will move into <#${category.id}>.`
+      );
       lines.push(...permissionWarnings(interaction, category, CATEGORY_PERMS, 'on that category'));
       saved = true;
       break;

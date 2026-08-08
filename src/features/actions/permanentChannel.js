@@ -1,6 +1,8 @@
 // Success action for permanence polls: move the voted-on channel into the
-// configured category and sync its permission overwrites with it (spec).
+// category for its kind (text vs voice, autodetected) and sync its
+// permission overwrites with it (spec).
 import { getConfig } from '../../store/guildConfig.js';
+import { channelKind, permanentCategoryFor } from '../configCommands.js';
 
 export async function permanentChannelAction(ctx, guild, poll) {
   const cfg = getConfig(ctx.db, guild.id) ?? {};
@@ -8,11 +10,18 @@ export async function permanentChannelAction(ctx, guild, poll) {
   if (!channel) {
     throw new Error('the voted-on channel no longer exists');
   }
-  const category = cfg.permanent_category_id
-    ? await guild.channels.fetch(cfg.permanent_category_id).catch(() => null)
-    : null;
+  const kind = channelKind(channel);
+  const categoryId = permanentCategoryFor(cfg, kind);
+  if (!categoryId) {
+    throw new Error(
+      'no permanent category is configured for voice channels — an admin should run /ttdb-config permanent-category kind:voice'
+    );
+  }
+  const category = await guild.channels.fetch(categoryId).catch(() => null);
   if (!category) {
-    throw new Error('the configured permanent category no longer exists — an admin should re-run /ttdb-config permanent-category');
+    throw new Error(
+      `the configured ${kind}-channel permanent category no longer exists — an admin should re-run /ttdb-config permanent-category`
+    );
   }
   await channel.setParent(category.id, {
     lockPermissions: true,

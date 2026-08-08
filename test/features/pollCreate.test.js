@@ -32,10 +32,14 @@ function fakeGuild() {
   };
   const targetChannel = { id: 'chan-target', parentId: null };
   const inCategory = { id: 'chan-owned', parentId: 'cat-1' };
+  const voiceChannel = { id: 'chan-voice', type: 2, parentId: null };
+  const voiceOwned = { id: 'chan-voice-owned', type: 2, parentId: 'cat-v' };
   const byId = new Map([
     ['chan-poll', pollChannel],
     ['chan-target', targetChannel],
     ['chan-owned', inCategory],
+    ['chan-voice', voiceChannel],
+    ['chan-voice-owned', voiceOwned],
   ]);
   return {
     id: 'g1',
@@ -90,12 +94,20 @@ test('buildCreateModal (invite) carries explanation, name input, and duration se
   assert.equal(duration.component.options.find((o) => o.default).value, '604800');
 });
 
-test('buildCreateModal (permchan) uses a text-channel select', () => {
+test('buildCreateModal (permchan) offers text and voice channels', () => {
   const modal = buildCreateModal('permchan', { ...FULL_CONFIG }, false);
   assert.equal(modal.custom_id, 'ttdb:create:permchan');
   const channel = modal.components.find((c) => c.component?.custom_id === 'channel');
   assert.equal(channel.component.type, 8);
-  assert.deepEqual(channel.component.channel_types, [0]);
+  assert.deepEqual(channel.component.channel_types, [0, 2]);
+});
+
+test('the creation explanation uses the threshold for that poll type', () => {
+  const cfg = { ...FULL_CONFIG, threshold_type_permchan: 'count', threshold_value_permchan: 7 };
+  const inviteText = buildCreateModal('invite', cfg, false).components.find((c) => c.type === 10).content;
+  const permText = buildCreateModal('permchan', cfg, false).components.find((c) => c.type === 10).content;
+  assert.match(inviteText, /3 vote total/, 'invite falls back to the legacy threshold');
+  assert.match(permText, /7 vote total/, 'permanence uses its own threshold');
 });
 
 test('extractModalValues reads text values and select value arrays from nested shapes', () => {
@@ -218,6 +230,41 @@ test('permchan modal submit stores the channel id and refuses channels already i
   const [poll] = listOpen(db, 'g1');
   assert.equal(poll.type, 'permanent_channel');
   assert.equal(poll.subject, 'chan-target');
+});
+
+test('voice channels are refused until a voice permanent category is configured', async (t) => {
+  const db = tempDb(t);
+  setConfig(db, 'g1', FULL_CONFIG); // text/legacy category only
+  const interaction = fakeInteraction({
+    guild: fakeGuild(),
+    values: { channel: ['chan-voice'], duration: ['604800'] },
+  });
+  await handleCreateModal({ db }, interaction, ['permchan']);
+  assert.equal(listOpen(db, 'g1').length, 0);
+  assert.match(interaction.replies[0].content, /kind:voice/);
+});
+
+test('voice channels can be nominated once the voice category exists, unless already in it', async (t) => {
+  clearEligibilityCache();
+  const db = tempDb(t);
+  setConfig(db, 'g1', { ...FULL_CONFIG, permanent_category_voice_id: 'cat-v' });
+
+  const owned = fakeInteraction({
+    guild: fakeGuild(),
+    values: { channel: ['chan-voice-owned'], duration: ['604800'] },
+  });
+  await handleCreateModal({ db }, owned, ['permchan']);
+  assert.match(owned.replies[0].content, /already/i);
+  assert.equal(listOpen(db, 'g1').length, 0);
+
+  const ok = fakeInteraction({
+    guild: fakeGuild(),
+    values: { channel: ['chan-voice'], duration: ['604800'] },
+  });
+  await handleCreateModal({ db, now: () => 0 }, ok, ['permchan']);
+  const [poll] = listOpen(db, 'g1');
+  assert.equal(poll.type, 'permanent_channel');
+  assert.equal(poll.subject, 'chan-voice');
 });
 
 test('invalid duration values are refused', async (t) => {
