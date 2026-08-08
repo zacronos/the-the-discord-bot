@@ -161,9 +161,11 @@ what it asks, how many people have voted, how many haven't, and when it
 closes — never who voted or how.
 
 Press **Vote / change my vote** to get a private ballot only you can see,
-with four options: *Yes!*, *No, I'd rather not…*, *Hard no*, and *I abstain
-from voting*. Your ballot shows your current vote, and you can change it
-any time until the poll closes. The poll closes at its scheduled hour — or
+showing the poll question and four options: *Yes!*, *No, I'd rather not…*,
+*Hard no*, and *I abstain from voting*. Casting a vote dismisses the
+ballot immediately — press the button again any time before the poll
+closes to see or change your vote. Untouched ballots (and the
+poll-creation confirmation) clean themselves up after ~14 minutes. The poll closes at its scheduled hour — or
 immediately, once every (non-bot) member of the server has voted.
 
 **An honest note on anonymity:** votes are anonymous to everyone on

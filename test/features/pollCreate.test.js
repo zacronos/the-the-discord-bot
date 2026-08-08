@@ -58,24 +58,27 @@ function fakeGuild() {
 }
 
 function fakeInteraction({ guild, hasRole = true, values = {} } = {}) {
-  const shown = [];
-  const replies = [];
-  return {
+  const interaction = {
     guildId: 'g1',
     guild,
     user: { id: 'u1' },
     member: { roles: { cache: { has: () => hasRole } } },
-    shown,
-    replies,
+    shown: [],
+    replies: [],
+    deletedReplies: 0,
     // modal-submit values arrive as label-wrapped components
     components: Object.entries(values).map(([id, value]) => ({
       component: Array.isArray(value)
         ? { custom_id: id, values: value }
         : { custom_id: id, value },
     })),
-    showModal: async (payload) => shown.push(payload),
-    reply: async (payload) => replies.push(payload),
+    showModal: async (payload) => interaction.shown.push(payload),
+    reply: async (payload) => interaction.replies.push(payload),
+    deleteReply: async () => {
+      interaction.deletedReplies += 1;
+    },
   };
+  return interaction;
 }
 
 test('buildCreateModal (invite) carries explanation, name input, and duration select with default', () => {
@@ -179,12 +182,27 @@ test('invite modal closes-at rounding sanity (moved assertion)', async (t) => {
   const guild = fakeGuild();
   const interaction = fakeInteraction({ guild, values: { name: 'Grace', duration: ['259200'] } });
   const now = 1_000;
-  await handleCreateModal({ db, now: () => now }, interaction, ['invite']);
+  const scheduled = [];
+  await handleCreateModal(
+    { db, now: () => now, schedule: (fn, ms) => scheduled.push({ fn, ms }) },
+    interaction,
+    ['invite']
+  );
   const poll = listOpen(db, 'g1').find((p) => p.subject === 'Grace');
   assert.equal(poll.closes_at, 262_800_000);
   assert.equal(poll.message_id, 'msg-1');
   assert.equal(guild.pollChannel.sent[0].content, '@everyone');
+  assert.match(
+    interaction.replies[0].content,
+    /\*\*Should we invite Grace to the server\?\*\*/,
+    'confirmation says what the poll is for'
+  );
   assert.match(interaction.replies[0].content, /discord\.com\/channels\/g1\/chan-poll\/msg-1/);
+
+  assert.equal(scheduled.length, 1, 'confirmation self-destruct scheduled');
+  assert.equal(scheduled[0].ms, 14 * 60_000);
+  await scheduled[0].fn();
+  assert.equal(interaction.deletedReplies, 1);
 });
 
 test('a duplicate open poll for the same person is refused (case-insensitive)', async (t) => {

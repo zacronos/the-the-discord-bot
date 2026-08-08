@@ -117,7 +117,8 @@ test('vote button on a closed poll says so', async (t) => {
   assert.match(interaction.replies[0].content, /closed/i);
 });
 
-test('casting records the vote, updates the ballot, and refreshes public counts', async (t) => {
+test('casting records the vote, deletes the ballot panel, and refreshes public counts', async (t) => {
+  clearBallotTracking();
   clearEligibilityCache();
   clearRefreshThrottle();
   const db = tempDb(t);
@@ -125,10 +126,10 @@ test('casting records the vote, updates the ballot, and refreshes public counts'
   const guild = fakeGuild(3);
   const interaction = fakeInteraction({ guild });
 
-  await handleCastButton({ db }, interaction, [String(poll.id), 'yes']);
+  await handleCastButton({ db, schedule: () => {} }, interaction, [String(poll.id), 'yes']);
   assert.equal(getVote(db, poll.id, 'u1'), 'yes');
-  assert.match(interaction.updates[0].content, /\*\*Should we invite Ada to the server\?\*\*/);
-  assert.match(interaction.updates[0].content, /Yes!/);
+  assert.equal(interaction.deletedReplies, 1, 'ballot dismissed once the vote is cast');
+  assert.equal(interaction.updates.length, 0, 'no ballot re-render');
   assert.equal(guild.message.edits.length, 1, 'public counts refreshed');
 });
 
@@ -153,14 +154,14 @@ test('open ballots are deleted when asked, then tracking is cleared', async (t) 
   const db = tempDb(t);
   const poll = makePoll(db);
   const ballot = fakeInteraction({ guild: fakeGuild() });
-  await handleVoteButton({ db, now: () => 1_000 }, ballot, [String(poll.id)]);
+  await handleVoteButton({ db, now: () => 1_000, schedule: () => {} }, ballot, [String(poll.id)]);
 
   assert.equal(await deleteBallots(poll.id, 61_000), 1);
   assert.equal(ballot.deletedReplies, 1);
   assert.equal(await deleteBallots(poll.id, 61_000), 0, 'second pass finds nothing');
 });
 
-test('expired ballot tokens are skipped; casting refreshes the tracked interaction', async (t) => {
+test('casting untracks the ballot; never-cast expired ones are left alone', async (t) => {
   clearBallotTracking();
   clearEligibilityCache();
   clearRefreshThrottle();
@@ -169,21 +170,41 @@ test('expired ballot tokens are skipped; casting refreshes the tracked interacti
   const guild = fakeGuild(3);
 
   const opened = fakeInteraction({ guild });
-  await handleVoteButton({ db, now: () => 0 }, opened, [String(poll.id)]);
+  await handleVoteButton({ db, now: () => 0, schedule: () => {} }, opened, [String(poll.id)]);
   const casted = fakeInteraction({ guild });
-  await handleCastButton({ db, now: () => 10 * 60_000 }, casted, [String(poll.id), 'yes']);
-
-  // 16 minutes in: the original interaction would be expired, but the cast
-  // refreshed the tracked token 10 minutes in.
-  assert.equal(await deleteBallots(poll.id, 16 * 60_000), 1);
-  assert.equal(casted.deletedReplies, 1);
-  assert.equal(opened.deletedReplies, 0);
+  await handleCastButton({ db, now: () => 60_000, schedule: () => {} }, casted, [String(poll.id), 'yes']);
+  assert.equal(casted.deletedReplies, 1, 'the ballot message was deleted via the cast interaction');
+  assert.equal(await deleteBallots(poll.id, 61_000), 0, 'the cast removed the tracking');
 
   const stale = fakeInteraction({ guild });
   const second = makePoll(db, { subject: 'Grace' });
-  await handleVoteButton({ db, now: () => 0 }, stale, [String(second.id)]);
+  await handleVoteButton({ db, now: () => 0, schedule: () => {} }, stale, [String(second.id)]);
   assert.equal(await deleteBallots(second.id, 20 * 60_000), 0, 'fully expired ballots are left alone');
   assert.equal(stale.deletedReplies, 0);
+});
+
+test('an uncast ballot self-deletes after 14 minutes', async (t) => {
+  clearBallotTracking();
+  clearEligibilityCache();
+  clearRefreshThrottle();
+  const db = tempDb(t);
+  const poll = makePoll(db);
+  const scheduled = [];
+  const ctx = {
+    db,
+    now: () => 0,
+    schedule: (fn, ms) => {
+      scheduled.push({ fn, ms });
+    },
+  };
+  const ballot = fakeInteraction({ guild: fakeGuild() });
+  await handleVoteButton(ctx, ballot, [String(poll.id)]);
+
+  assert.equal(scheduled.length, 1);
+  assert.equal(scheduled[0].ms, 14 * 60_000);
+  await scheduled[0].fn();
+  assert.equal(ballot.deletedReplies, 1);
+  assert.equal(await deleteBallots(poll.id, 1_000), 0, 'the timer removed the tracking too');
 });
 
 test('casting on a closed poll is refused and records nothing', async (t) => {

@@ -12,14 +12,14 @@ import {
 } from './configCommands.js';
 import { durationSelectOptions, isAllowedDurationSeconds } from './durations.js';
 import { eligibleVoterCount } from './eligibility.js';
-import { renderPollMessage } from './pollMessage.js';
-import { roundUpToNextHour } from '../util/time.js';
+import { pollTitle, renderPollMessage } from './pollMessage.js';
+import { EPHEMERAL_TTL_MS, roundUpToNextHour, scheduleDelayed } from '../util/time.js';
 
 // customId segment → poll type stored in the database
 const POLL_TYPES = { invite: 'invite', permchan: 'permanent_channel' };
 
 const replyEphemeral = (interaction, content) =>
-  interaction.reply({ content, flags: MessageFlags.Ephemeral });
+  interaction.reply({ content, flags: MessageFlags.Ephemeral, allowedMentions: { parse: [] } });
 
 // Kept intentionally short: the scoring rules and thresholds live on the
 // init message members press to get here.
@@ -204,8 +204,16 @@ export async function handleCreateModal(ctx, interaction, [typePart]) {
   setMessageId(ctx.db, poll.id, message.id);
   poll.message_id = message.id;
 
-  return replyEphemeral(
+  await replyEphemeral(
     interaction,
-    `✅ Your poll is live: https://discord.com/channels/${interaction.guildId}/${pollChannel.id}/${message.id}\nYou'll get the result by DM when it closes.`
+    `✅ Your poll is live: **${pollTitle(poll)}**\nhttps://discord.com/channels/${interaction.guildId}/${pollChannel.id}/${message.id}\nYou'll get the result by DM when it closes.`
   );
+  // The confirmation cleans itself up just inside the interaction-token window.
+  scheduleDelayed(ctx, async () => {
+    try {
+      await interaction.deleteReply();
+    } catch {
+      // already dismissed
+    }
+  }, EPHEMERAL_TTL_MS);
 }

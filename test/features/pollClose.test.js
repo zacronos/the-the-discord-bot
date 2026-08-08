@@ -248,7 +248,7 @@ test('closing a poll dismisses tracked open ballots', async (t) => {
       ballot.deletedReplies += 1;
     },
   };
-  await handleVoteButton({ db, now: ctx.now }, ballot, [String(poll.id)]);
+  await handleVoteButton({ db, now: ctx.now, schedule: () => {} }, ballot, [String(poll.id)]);
 
   await closePollPipeline(ctx, poll);
   assert.equal(ballot.deletedReplies, 1, 'the open ballot was deleted at close');

@@ -6,6 +6,7 @@ import { getPoll } from '../store/polls.js';
 import { castVote, countVoters, getVote } from '../store/votes.js';
 import { eligibleVoterCount } from './eligibility.js';
 import { pollTitle, refreshPollCounts } from './pollMessage.js';
+import { EPHEMERAL_TTL_MS, scheduleDelayed } from '../util/time.js';
 
 const NO_LABELS = {
   invite: "No, I'd rather not invite them, but I won't object if enough people want to",
@@ -27,21 +28,40 @@ export function choiceLabel(type, choice) {
   }
 }
 
-// Live ballot interactions per poll, so the close pipeline can dismiss
-// them. Ephemeral messages are only deletable through their interaction
-// token (valid ~15 minutes), so this is best-effort: ballots older than the
-// window simply report "closed" if pressed. In-memory by design — after a
-// restart the old tokens would be expired anyway.
-const liveBallots = new Map(); // pollId -> Map<userId, { interaction, at }>
-const TOKEN_WINDOW_MS = 14 * 60_000;
+// Live ballot interactions per poll, so casting, the 14-minute timer, or
+// the close pipeline can dismiss them. Ephemeral messages are only
+// deletable through their interaction token (valid ~15 minutes) — hence
+// the timer, and best-effort deletion everywhere else. In-memory by
+// design: after a restart the old tokens would be expired anyway.
+const liveBallots = new Map(); // pollId -> Map<userId, { interaction, at, timer }>
 
-function trackBallot(poll, interaction, at) {
+function untrackBallot(pollId, userId) {
+  const perUser = liveBallots.get(pollId);
+  if (!perUser) return;
+  const entry = perUser.get(userId);
+  if (!entry) return;
+  if (entry.timer) clearTimeout(entry.timer);
+  perUser.delete(userId);
+  if (perUser.size === 0) liveBallots.delete(pollId);
+}
+
+function trackBallot(ctx, poll, interaction, at) {
   let perUser = liveBallots.get(poll.id);
   if (!perUser) {
     perUser = new Map();
     liveBallots.set(poll.id, perUser);
   }
-  perUser.set(interaction.user.id, { interaction, at });
+  const existing = perUser.get(interaction.user.id);
+  if (existing?.timer) clearTimeout(existing.timer);
+  const timer = scheduleDelayed(ctx, async () => {
+    untrackBallot(poll.id, interaction.user.id);
+    try {
+      await interaction.deleteReply();
+    } catch {
+      // already dismissed or token just expired
+    }
+  }, EPHEMERAL_TTL_MS);
+  perUser.set(interaction.user.id, { interaction, at, timer });
 }
 
 // Deletes every still-deletable ballot for the poll and forgets the rest.
@@ -50,8 +70,9 @@ export async function deleteBallots(pollId, now = Date.now()) {
   liveBallots.delete(pollId);
   if (!perUser) return 0;
   let deleted = 0;
-  for (const { interaction, at } of perUser.values()) {
-    if (now - at > TOKEN_WINDOW_MS) continue;
+  for (const { interaction, at, timer } of perUser.values()) {
+    if (timer) clearTimeout(timer);
+    if (now - at > EPHEMERAL_TTL_MS) continue;
     try {
       await interaction.deleteReply();
       deleted += 1;
@@ -63,6 +84,11 @@ export async function deleteBallots(pollId, now = Date.now()) {
 }
 
 export function clearBallotTracking() {
+  for (const perUser of liveBallots.values()) {
+    for (const { timer } of perUser.values()) {
+      if (timer) clearTimeout(timer);
+    }
+  }
   liveBallots.clear();
 }
 
@@ -97,7 +123,7 @@ export async function handleVoteButton(ctx, interaction, [pollIdRaw]) {
   }
   const current = getVote(ctx.db, poll.id, interaction.user.id);
   await interaction.reply({ ...buildBallot(poll, current), flags: MessageFlags.Ephemeral });
-  trackBallot(poll, interaction, ctx.now?.() ?? Date.now());
+  trackBallot(ctx, poll, interaction, ctx.now?.() ?? Date.now());
 }
 
 export async function handleCastButton(ctx, interaction, [pollIdRaw, choice]) {
@@ -106,8 +132,22 @@ export async function handleCastButton(ctx, interaction, [pollIdRaw, choice]) {
     return interaction.update({ content: 'This poll has closed.', components: [] });
   }
   castVote(ctx.db, poll.id, interaction.user.id, choice);
-  await interaction.update(buildBallot(poll, choice));
-  trackBallot(poll, interaction, ctx.now?.() ?? Date.now()); // fresher token than the original reply
+  // The ballot disappears once the vote is cast; the Vote button re-opens
+  // it to view or change the vote.
+  untrackBallot(poll.id, interaction.user.id);
+  try {
+    await interaction.deferUpdate?.();
+    await interaction.deleteReply();
+  } catch {
+    try {
+      await interaction.update({
+        content: 'Vote recorded — use "Vote / change my vote" to see or change it.',
+        components: [],
+      });
+    } catch {
+      // interaction already acknowledged elsewhere; the vote is recorded
+    }
+  }
 
   // Public counts + everyone-has-voted early close (Q2: non-bot members).
   await refreshPollCounts(ctx, interaction.guild, poll).catch(() => {});
