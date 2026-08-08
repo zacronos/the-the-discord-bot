@@ -357,6 +357,21 @@ test('the permanence dropdown excludes channels already in any permanent group',
   );
 });
 
+test('the permanence dropdown offers no voice channels until a voice category is configured', async (t) => {
+  const db = tempDb(t);
+  setConfig(db, 'g1', FULL_CONFIG); // no voice category
+  const interaction = fakeInteraction({ guild: fakeGuild() });
+  await handleStartButton({ db }, interaction, ['permchan']);
+
+  const select = interaction.shown[0].components.find((c) => c.component?.custom_id === 'channel');
+  const values = select.component.options.map((o) => o.value);
+  assert.ok(
+    !values.includes('chan-voice') && !values.includes('chan-voice-owned'),
+    'no dead-end voice options while voice permanence is unconfigured'
+  );
+  assert.ok(values.includes('chan-target'), 'text candidates still offered');
+});
+
 test('the permanence button refuses when every channel is already permanent', async (t) => {
   const db = tempDb(t);
   setConfig(db, 'g1', FULL_CONFIG);

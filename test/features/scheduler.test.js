@@ -111,6 +111,43 @@ test('runSweep deletes channels whose scheduled deletion has come due', async (t
   assert.equal(listDueDeletions(db, 999_000).length, 1, 'future deletion untouched');
 });
 
+test('a transiently failing scheduled deletion is retried, not discarded', async (t) => {
+  const { db, ctx, doomedChannel } = makeWorld(t);
+  ctx.closeDuePoll = async () => {};
+  let failing = true;
+  doomedChannel.delete = async () => {
+    if (failing) throw new Error('Missing Permissions');
+    doomedChannel.deleted = true;
+  };
+  scheduleDeletion(db, { channelId: 'chan-doomed', guildId: 'g1', deleteAt: 9_000 });
+
+  await runSweep(ctx, 10_000);
+  assert.equal(listDueDeletions(db, 10_000).length, 1, 'row kept for the next sweep');
+  assert.equal(doomedChannel.deleted, false);
+
+  failing = false;
+  await runSweep(ctx, 11_000);
+  assert.equal(doomedChannel.deleted, true);
+  assert.equal(listDueDeletions(db, 999_000).length, 0);
+});
+
+test('one failing close does not block other closes or due deletions', async (t) => {
+  const { db, ctx, doomedChannel } = makeWorld(t);
+  const poisoned = mkPoll(db, { closesAt: 5_000 });
+  const healthy = mkPoll(db, { closesAt: 5_000, subject: 'Grace' });
+  const closed = [];
+  ctx.closeDuePoll = async (p) => {
+    if (p.id === poisoned.id) throw new Error('boom');
+    closed.push(p.id);
+  };
+  scheduleDeletion(db, { channelId: 'chan-doomed', guildId: 'g1', deleteAt: 9_000 });
+
+  await runSweep(ctx, 10_000);
+  assert.deepEqual(closed, [healthy.id], 'the healthy poll still closed');
+  assert.equal(doomedChannel.deleted, true, 'the due deletion still executed');
+  assert.equal(getPoll(db, poisoned.id).status, 'open', 'the failed close stays retryable');
+});
+
 test('runSweep drops a scheduled deletion whose channel already vanished', async (t) => {
   const { db, ctx } = makeWorld(t);
   ctx.closeDuePoll = async () => {};

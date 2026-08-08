@@ -128,6 +128,30 @@ test('the init message ends with the per-poll-type thresholds and tracks changes
   );
 });
 
+test('the init message marks channel-deletion polls as not set until their threshold resolves', () => {
+  const cfg = {
+    poll_channel_id: 'chan-1',
+    hard_no_weight: 'veto',
+    threshold_type_invite: 'count',
+    threshold_value_invite: 3,
+    threshold_type_permchan: 'count',
+    threshold_value_permchan: 3,
+    permanent_category_text_id: 'cat-t',
+  };
+  const before = buildInitMessage(cfg);
+  const description = before.embeds[0].data.description;
+  assert.match(description, /• Channel-deletion polls: _not set_/);
+  assert.doesNotMatch(description, /undefined|NaN|null/);
+
+  const after = buildInitMessage({ ...cfg, threshold_type_delchan: 'count', threshold_value_delchan: 4 });
+  assert.match(after.embeds[0].data.description, /• Channel-deletion polls: _4 points total_/);
+  assert.notEqual(
+    before.embeds[0].data.footer.text,
+    after.embeds[0].data.footer.text,
+    'setting the threshold re-hashes, so a posted message gets edited'
+  );
+});
+
 test('buildInitMessage carries the marker footer with a content hash, and both start buttons', () => {
   const payload = buildInitMessage(FULL_CONFIG);
   assert.match(

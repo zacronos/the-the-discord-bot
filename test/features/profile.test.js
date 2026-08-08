@@ -89,6 +89,28 @@ test('configured server: description references the poll channel by name', async
   assert.equal(app.edits[0].description, CONFIGURED_TEXT);
 });
 
+test('the description names the actual poll channel and follows a poll-channel change', async (t) => {
+  const db = tempDb(t);
+  setConfig(db, 'g1', FULL_CONFIG);
+  const app = fakeApp();
+  const names = { 'chan-1': 'elections', 'chan-2': 'ballots' };
+  const guild = { id: 'g1', channels: { fetch: async (id) => ({ id, name: names[id] }) } };
+  const ctx = fakeCtx(db, app, { guilds: [guild] });
+  const iconPath = tempIcon(t);
+
+  await ensureProfile(ctx, { iconPath });
+  assert.match(app.description, /#elections/);
+  assert.doesNotMatch(app.description, /#votes/, 'no hardcoded channel name');
+
+  setConfig(db, 'g1', { poll_channel_id: 'chan-2' });
+  await ensureProfile(ctx, { iconPath });
+  assert.match(app.description, /#ballots/, 'follows the poll-channel change');
+
+  const editsSoFar = app.edits.length;
+  await ensureProfile(ctx, { iconPath });
+  assert.equal(app.edits.length, editsSoFar, 'no further edit when nothing changed');
+});
+
 test('no-op when description and icon are already current', async (t) => {
   const db = tempDb(t);
   const iconPath = tempIcon(t);

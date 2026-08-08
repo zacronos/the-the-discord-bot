@@ -10,8 +10,10 @@ import {
 import { setConfig } from '../../src/store/guildConfig.js';
 import { claimForClose, createPoll, getPoll, setMessageId } from '../../src/store/polls.js';
 import { castVote, countVoters } from '../../src/store/votes.js';
+import { deleteChannelAction } from '../../src/features/actions/deleteChannel.js';
 import { clearBallotTracking, handleVoteButton } from '../../src/features/ballot.js';
-import { clearEligibilityCache } from '../../src/features/eligibility.js';
+import { clearEligibilityCache, fetchGuildMembers } from '../../src/features/eligibility.js';
+import { listDueDeletions } from '../../src/store/scheduledDeletions.js';
 import { tempDb } from '../store/helpers.js';
 
 const CONFIG = {
@@ -235,6 +237,137 @@ test('votes from members who left are dropped before tallying (Q2)', async (t) =
 
   await closePollPipeline(ctx, poll);
   assert.equal(getPoll(db, poll.id).status, 'failed', 'total is 1, target 2');
+});
+
+function wireDoomedChannel(world) {
+  const warned = [];
+  const doomed = { id: 'chan-doomed', send: async (p) => warned.push(p) };
+  const baseFetch = world.guild.channels.fetch;
+  world.guild.channels.fetch = async (id) => (id === 'chan-doomed' ? doomed : baseFetch(id));
+  world.ctx.actions.delete_channel = deleteChannelAction;
+  return warned;
+}
+
+function makeDeletionPoll(db) {
+  const poll = createPoll(db, {
+    guildId: 'g1',
+    type: 'delete_channel',
+    subject: 'chan-doomed',
+    initiatorId: 'u1',
+    channelId: 'chan-poll',
+    closesAt: 5_000,
+  });
+  setMessageId(db, poll.id, 'msg-2');
+  return poll;
+}
+
+test('a failed or vetoed deletion poll schedules nothing and never touches the channel', async (t) => {
+  const failedWorld = makeWorld(t, { config: { ...CONFIG, hard_no_weight: '-2' } });
+  const warnedA = wireDoomedChannel(failedWorld);
+  const pollA = makeDeletionPoll(failedWorld.db);
+  castVote(failedWorld.db, pollA.id, 'u2', 'no');
+  await closePollPipeline(failedWorld.ctx, pollA);
+  assert.equal(getPoll(failedWorld.db, pollA.id).status, 'failed');
+  assert.equal(listDueDeletions(failedWorld.db, Number.MAX_SAFE_INTEGER).length, 0);
+  assert.equal(warnedA.length, 0, 'the channel is never warned about a non-deletion');
+
+  const vetoWorld = makeWorld(t);
+  const warnedB = wireDoomedChannel(vetoWorld);
+  const pollB = makeDeletionPoll(vetoWorld.db);
+  castVote(vetoWorld.db, pollB.id, 'u2', 'hard_no');
+  await closePollPipeline(vetoWorld.ctx, pollB);
+  assert.equal(getPoll(vetoWorld.db, pollB.id).status, 'vetoed');
+  assert.equal(listDueDeletions(vetoWorld.db, Number.MAX_SAFE_INTEGER).length, 0);
+  assert.equal(warnedB.length, 0);
+  assert.ok(vetoWorld.dms.some((d) => d.userId === 'u2' && /veto/.test(d.content)), 'vetoer still notified');
+});
+
+test('a passed deletion poll schedules 24h from close (hour-rounded), warns the channel, and reports the time', async (t) => {
+  const world = makeWorld(t);
+  const warned = wireDoomedChannel(world);
+  const poll = makeDeletionPoll(world.db);
+  castVote(world.db, poll.id, 'u1', 'yes');
+  castVote(world.db, poll.id, 'u2', 'yes');
+
+  await closePollPipeline(world.ctx, poll); // ctx.now = 10_000 → +24h → next hour = 90_000_000
+  assert.equal(getPoll(world.db, poll.id).status, 'passed');
+  const rows = listDueDeletions(world.db, 90_000_000);
+  assert.equal(rows.length, 1);
+  assert.equal(rows[0].channel_id, 'chan-doomed');
+  assert.equal(rows[0].delete_at, 90_000_000);
+  assert.equal(rows[0].poll_id, poll.id);
+  assert.match(warned[0].content, /<t:90000:F>/);
+  const initiator = world.dms.find((d) => d.userId === 'u1');
+  assert.match(initiator.content, /deleting <#chan-doomed>/);
+  assert.match(initiator.content, /<t:90000:F>/);
+});
+
+test('channel-deletion polls close against their own threshold', async (t) => {
+  const world = makeWorld(t, {
+    config: {
+      ...CONFIG,
+      hard_no_weight: '-2',
+      threshold_type: null,
+      threshold_value: null,
+      threshold_type_invite: 'count',
+      threshold_value_invite: 1,
+      threshold_type_delchan: 'count',
+      threshold_value_delchan: 3,
+    },
+  });
+  const actionCalls = [];
+  world.ctx.actions.delete_channel = async () => {
+    actionCalls.push(1);
+    return 'scheduled';
+  };
+
+  const low = makeDeletionPoll(world.db);
+  castVote(world.db, low.id, 'u1', 'yes');
+  await closePollPipeline(world.ctx, low);
+  assert.equal(getPoll(world.db, low.id).status, 'failed', 'one yes fails the delchan target of 3');
+  assert.equal(actionCalls.length, 0);
+
+  const high = createPoll(world.db, {
+    guildId: 'g1',
+    type: 'delete_channel',
+    subject: 'chan-doomed-2',
+    initiatorId: 'u1',
+    channelId: 'chan-poll',
+    closesAt: 5_000,
+  });
+  setMessageId(world.db, high.id, 'msg-3');
+  for (const id of ['u1', 'u2', 'u3']) castVote(world.db, high.id, id, 'yes');
+  await closePollPipeline(world.ctx, high);
+  assert.equal(getPoll(world.db, high.id).status, 'passed');
+  assert.equal(actionCalls.length, 1);
+});
+
+test('passed and failed closes purge individual votes too', async (t) => {
+  const passWorld = makeWorld(t);
+  castVote(passWorld.db, passWorld.poll.id, 'u1', 'yes');
+  castVote(passWorld.db, passWorld.poll.id, 'u2', 'yes');
+  await closePollPipeline(passWorld.ctx, passWorld.poll);
+  assert.equal(getPoll(passWorld.db, passWorld.poll.id).status, 'passed');
+  assert.equal(countVoters(passWorld.db, passWorld.poll.id), 0);
+
+  const failWorld = makeWorld(t, { config: { ...CONFIG, hard_no_weight: '-2' } });
+  castVote(failWorld.db, failWorld.poll.id, 'u2', 'no');
+  await closePollPipeline(failWorld.ctx, failWorld.poll);
+  assert.equal(getPoll(failWorld.db, failWorld.poll.id).status, 'failed');
+  assert.equal(countVoters(failWorld.db, failWorld.poll.id), 0);
+});
+
+test('a close reuses a persisted member snapshot across a restart — no extra fetch', async (t) => {
+  const world = makeWorld(t);
+  await fetchGuildMembers(world.db, world.guild, { now: 5_000 });
+  assert.equal(world.world.memberFetches, 1);
+
+  clearEligibilityCache(); // restart: memory gone, sqlite snapshot remains
+  castVote(world.db, world.poll.id, 'u1', 'yes');
+  castVote(world.db, world.poll.id, 'u2', 'yes');
+  await closePollPipeline(world.ctx, world.poll);
+  assert.equal(world.world.memberFetches, 1, 'decided from the restored snapshot');
+  assert.equal(getPoll(world.db, world.poll.id).status, 'passed');
 });
 
 test('a close performs at most one gateway member fetch (op8 rate budget)', async (t) => {

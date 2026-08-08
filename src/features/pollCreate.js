@@ -67,13 +67,17 @@ export function deletableChannelOptions(cfg, allChannels) {
 
 // Permanence candidates: text/voice channels NOT already inside any
 // permanent group (managed categories, legacy, or other permanent groups).
+// Voice channels are only offered once a voice category exists — otherwise
+// they would be dead-end options refused at submit.
 export function permanentizableChannelOptions(cfg, allChannels) {
   const excluded = allPermanentCategoryIds(cfg);
+  const voiceConfigured = Boolean(permanentCategoryFor(cfg, 'voice'));
   const options = [];
   for (const channel of allChannels.values()) {
     if (!channel) continue;
     const kind = channel.type ?? 0;
     if (kind !== 0 && kind !== 2) continue; // text and voice only
+    if (kind === 2 && !voiceConfigured) continue;
     if (excluded.has(channel.parentId)) continue;
     options.push(channelOption(channel));
   }
