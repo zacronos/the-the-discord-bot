@@ -80,7 +80,7 @@ test('the init message explains point totaling as a bullet list that tracks the 
   assert.match(description, /• Abstain {2}=> {2}\*\*0\*\*/);
   assert.match(
     description,
-    /• Hard no {2}=> {2}\*\*vetoes the poll\*\* \(it fails outright if there are any vetoes at closing\)/
+    /• Hard no {2}=> {2}\*\*vetoes the poll\*\* \(it fails outright if there are any vetoes\)/
   );
   assert.doesNotMatch(
     description.split('\n')[0],
