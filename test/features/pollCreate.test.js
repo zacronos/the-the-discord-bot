@@ -7,6 +7,7 @@ import {
   handleCreateModal,
   handleStartButton,
 } from '../../src/features/pollCreate.js';
+import { listCleanups } from '../../src/store/ephemeralCleanups.js';
 import { setConfig } from '../../src/store/guildConfig.js';
 import { createPoll, getPoll, listOpen } from '../../src/store/polls.js';
 import { clearEligibilityCache } from '../../src/features/eligibility.js';
@@ -67,6 +68,7 @@ function fakeInteraction({ guild, hasRole = true, values = {} } = {}) {
     guild,
     user: { id: 'u1' },
     member: { roles: { cache: { has: () => hasRole } } },
+    token: 'modal-token',
     shown: [],
     replies: [],
     deletedReplies: 0,
@@ -207,8 +209,14 @@ test('invite modal closes-at rounding sanity (moved assertion)', async (t) => {
 
   assert.equal(scheduled.length, 1, 'confirmation self-destruct scheduled');
   assert.equal(scheduled[0].ms, 14 * 60_000);
+  assert.equal(
+    listCleanups(db).length,
+    1,
+    'the pending cleanup is persisted so a restart cannot lose it'
+  );
   await scheduled[0].fn();
   assert.equal(interaction.deletedReplies, 1);
+  assert.equal(listCleanups(db).length, 0);
 });
 
 test('a duplicate open poll for the same person is refused (case-insensitive)', async (t) => {

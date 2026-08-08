@@ -11,6 +11,7 @@ import { deleteChannelAction } from './features/actions/deleteChannel.js';
 import { inviteAction } from './features/actions/invite.js';
 import { permanentChannelAction } from './features/actions/permanentChannel.js';
 import { auditGuildPermissions } from './features/audit.js';
+import { rehydrateEphemeralCleanups } from './features/ephemeralCleanup.js';
 import { closePollPipeline, handleGuildLeave, handleResendButton } from './features/pollClose.js';
 import { handleCreateModal, handleStartButton } from './features/pollCreate.js';
 import { ensureProfile } from './features/profile.js';
@@ -65,6 +66,11 @@ client.once(Events.ClientReady, async () => {
     await ctx.ensureProfile();
   } catch (err) {
     console.error(`[ttdb] profile sync: ${err.message}`);
+  }
+  try {
+    await rehydrateEphemeralCleanups(ctx);
+  } catch (err) {
+    console.error(`[ttdb] ephemeral cleanup rehydration: ${err.message}`);
   }
   startScheduler(ctx);
 });

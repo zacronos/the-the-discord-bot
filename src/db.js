@@ -46,6 +46,11 @@ CREATE TABLE IF NOT EXISTS app_state (
   key TEXT PRIMARY KEY,
   value TEXT
 );
+CREATE TABLE IF NOT EXISTS ephemeral_cleanups (
+  token TEXT PRIMARY KEY,      -- interaction token owning the ephemeral reply
+  delete_at INTEGER NOT NULL,  -- when the self-dismiss should happen
+  expires_at INTEGER NOT NULL  -- when the token dies (deletion impossible after)
+);
 CREATE TABLE IF NOT EXISTS member_cache (
   guild_id TEXT PRIMARY KEY,
   members_json TEXT NOT NULL,  -- [[memberId, isBot], ...]
