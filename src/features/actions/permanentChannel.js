@@ -27,5 +27,5 @@ export async function permanentChannelAction(ctx, guild, poll) {
     lockPermissions: true,
     reason: `The The Bot: permanence poll ${poll.id} passed`,
   });
-  return `<#${channel.id}> has been moved into <#${category.id}> with its permissions synced to the category.`;
+  return `#${channel.name} (<#${channel.id}>) has been moved into #${category.name} (<#${category.id}>) with its permissions synced to the category.`;
 }

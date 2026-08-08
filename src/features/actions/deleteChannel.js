@@ -26,5 +26,5 @@ export async function deleteChannelAction(ctx, guild, poll) {
   } catch {
     // can't announce in the channel; the deletion is scheduled regardless
   }
-  return `<#${channel.id}> is scheduled for deletion on <t:${sec}:F> (<t:${sec}:R>).`;
+  return `#${channel.name} (<#${channel.id}>) is scheduled for deletion on <t:${sec}:F> (<t:${sec}:R>).`;
 }

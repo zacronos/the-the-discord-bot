@@ -25,17 +25,18 @@ test('moves the channel into the category with permissions synced', async (t) =>
   const moves = [];
   const target = {
     id: 'chan-target',
+    name: 'quarterly',
     setParent: async (categoryId, options) => moves.push([categoryId, options]),
   };
-  const guild = fakeGuild({ 'chan-target': target, 'cat-1': { id: 'cat-1' } });
+  const guild = fakeGuild({ 'chan-target': target, 'cat-1': { id: 'cat-1', name: 'permanent' } });
 
   const note = await permanentChannelAction({ db }, guild, POLL);
 
   assert.equal(moves.length, 1);
   assert.equal(moves[0][0], 'cat-1');
   assert.equal(moves[0][1].lockPermissions, true, 'permission overwrites synced with the category');
-  assert.match(note, /<#chan-target>/);
-  assert.match(note, /<#cat-1>/);
+  assert.match(note, /#quarterly \(<#chan-target>\)/, 'name plus clickable reference');
+  assert.match(note, /#permanent \(<#cat-1>\)/);
 });
 
 test('fails clearly when the voted-on channel no longer exists', async (t) => {

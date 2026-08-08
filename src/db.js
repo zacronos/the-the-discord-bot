@@ -31,8 +31,9 @@ CREATE TABLE IF NOT EXISTS guild_config (
 CREATE TABLE IF NOT EXISTS polls (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   guild_id TEXT NOT NULL,
-  type TEXT NOT NULL,             -- 'invite'|'permanent_channel'
+  type TEXT NOT NULL,             -- 'invite'|'permanent_channel'|'delete_channel'
   subject TEXT NOT NULL,          -- invitee name or channel id
+  subject_name TEXT,              -- channel name at nomination (survives deletion)
   initiator_id TEXT NOT NULL,
   channel_id TEXT NOT NULL,
   message_id TEXT,
@@ -94,6 +95,7 @@ export function openDb(path) {
     'ALTER TABLE guild_config ADD COLUMN threshold_type_delchan TEXT',
     'ALTER TABLE guild_config ADD COLUMN threshold_value_delchan REAL',
     'ALTER TABLE guild_config ADD COLUMN other_permanent_category_ids TEXT',
+    'ALTER TABLE polls ADD COLUMN subject_name TEXT',
   ]) {
     try {
       db.exec(alter);

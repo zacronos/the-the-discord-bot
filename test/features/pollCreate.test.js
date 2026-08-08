@@ -432,6 +432,7 @@ test('only channels inside the permanent categories can be nominated for deletio
   const [poll] = listOpen(db, 'g1');
   assert.equal(poll.type, 'delete_channel');
   assert.equal(poll.subject, 'chan-owned');
+  assert.equal(poll.subject_name, 'perm-chat', 'the name is captured for post-deletion DMs');
 });
 
 test('voice channels are refused until a voice permanent category is configured', async (t) => {

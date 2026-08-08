@@ -17,10 +17,15 @@ import { deleteBallots } from './ballot.js';
 import { thresholdFor } from './configCommands.js';
 import { eligibleVoterCount, fetchGuildMembers } from './eligibility.js';
 
+// Channel references in DMs lead with the literal name (a bare <#id>
+// renders as "#unknown" once the channel is deleted).
+const channelRef = (poll) =>
+  poll.subject_name ? `#${poll.subject_name} (<#${poll.subject}>)` : `<#${poll.subject}>`;
+
 const describePoll = (poll) => {
   if (poll.type === 'invite') return `inviting **${poll.subject}**`;
-  if (poll.type === 'delete_channel') return `deleting <#${poll.subject}>`;
-  return `making <#${poll.subject}> permanent`;
+  if (poll.type === 'delete_channel') return `deleting ${channelRef(poll)}`;
+  return `making ${channelRef(poll)} permanent`;
 };
 
 // The initiator learns pass/fail (and the veto count when vetoed) — never

@@ -550,10 +550,16 @@ test('leaving a guild aborts all of its open polls (7.3)', async (t) => {
 });
 
 test('buildResultDm names the poll subject in every outcome', () => {
+  const named = { type: 'delete_channel', subject: 'chan-9', subject_name: 'archive', initiator_id: 'u1' };
+  assert.match(
+    buildResultDm(named, 'passed', 0, null),
+    /deleting #archive \(<#chan-9>\)/,
+    'literal name first, clickable reference in parentheses'
+  );
   const deletion = { type: 'delete_channel', subject: 'chan-9', initiator_id: 'u1' };
-  assert.match(buildResultDm(deletion, 'passed', 0, null), /deleting <#chan-9>/);
-  const poll = { type: 'permanent_channel', subject: 'chan-9', initiator_id: 'u1' };
-  assert.match(buildResultDm(poll, 'passed', 0, null), /<#chan-9>/);
+  assert.match(buildResultDm(deletion, 'passed', 0, null), /deleting <#chan-9>/, 'mention-only fallback without a stored name');
+  const poll = { type: 'permanent_channel', subject: 'chan-9', subject_name: 'plans', initiator_id: 'u1' };
+  assert.match(buildResultDm(poll, 'passed', 0, null), /#plans \(<#chan-9>\)/);
   assert.match(buildResultDm(poll, 'failed', 0, null), /<#chan-9>/);
   assert.match(buildResultDm(poll, 'vetoed', 3, null), /3 member/);
 });

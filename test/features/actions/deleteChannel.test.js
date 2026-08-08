@@ -22,7 +22,7 @@ function fakeGuild(channels) {
 test('schedules deletion 24h out (hour-rounded), warns the channel, and reports the time', async (t) => {
   const db = tempDb(t);
   const sent = [];
-  const doomed = { id: 'chan-doomed', send: async (p) => sent.push(p) };
+  const doomed = { id: 'chan-doomed', name: 'old-plans', send: async (p) => sent.push(p) };
   const guild = fakeGuild({ 'chan-doomed': doomed });
 
   // now = 1000 → +24h = 86_401_000 → next hour boundary = 90_000_000 (25h)
@@ -40,7 +40,7 @@ test('schedules deletion 24h out (hour-rounded), warns the channel, and reports 
   assert.match(sent[0].content, /<t:90000:R>/);
   assert.deepEqual(sent[0].allowedMentions, { parse: [] });
 
-  assert.match(note, /<#chan-doomed>/);
+  assert.match(note, /#old-plans \(<#chan-doomed>\)/, 'the name survives the eventual deletion');
   assert.match(note, /<t:90000:F>/);
 });
 

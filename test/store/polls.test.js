@@ -39,6 +39,14 @@ test('createPoll stores an open poll and returns it with an id', (t) => {
   assert.equal(poll.message_id, null);
 });
 
+test('createPoll stores the human-readable subject name when given', (t) => {
+  const db = tempDb(t);
+  const named = createPoll(db, { ...base, subjectName: 'general' });
+  assert.equal(named.subject_name, 'general');
+  const unnamed = createPoll(db, base);
+  assert.equal(unnamed.subject_name, null);
+});
+
 test('createPoll rejects an unknown poll type', (t) => {
   const db = tempDb(t);
   assert.throws(() => createPoll(db, { ...base, type: 'coup' }), /Unknown poll type: coup/);

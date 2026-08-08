@@ -226,6 +226,7 @@ export async function handleCreateModal(ctx, interaction, [typePart]) {
   }
 
   let subject;
+  let subjectName = null;
   if (type === 'invite') {
     subject = collapseWhitespace(values.name);
     if (subject.length < 1 || subject.length > 80) {
@@ -253,6 +254,7 @@ export async function handleCreateModal(ctx, interaction, [typePart]) {
       );
     }
     subject = channelId;
+    subjectName = channel.name ?? null;
   } else {
     const channelId = first(values.channel);
     const channel = await interaction.guild.channels.fetch(channelId).catch(() => null);
@@ -273,6 +275,7 @@ export async function handleCreateModal(ctx, interaction, [typePart]) {
       return replyEphemeral(interaction, `⚠️ <#${channelId}> is already in a permanent group.`);
     }
     subject = channelId;
+    subjectName = channel.name ?? null;
   }
 
   const key = duplicateKey(type, subject);
@@ -291,6 +294,7 @@ export async function handleCreateModal(ctx, interaction, [typePart]) {
     guildId: interaction.guildId,
     type,
     subject,
+    subjectName,
     initiatorId: interaction.user.id,
     channelId: cfg.poll_channel_id,
     createdAt: now,
