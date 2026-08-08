@@ -78,7 +78,10 @@ test('the init message explains point totaling as a bullet list that tracks the 
   assert.match(description, /• \*\*Yes!\*\* = \+1/);
   assert.match(description, /• \*\*No\*\* = −1/);
   assert.match(description, /• \*\*Abstain\*\* = 0/);
-  assert.match(description, /• \*\*Hard no\*\* — a single one vetoes the poll/);
+  assert.match(
+    description,
+    /• \*\*Hard no\*\* — vetoes the poll \(it fails outright if there are any vetoes at closing\)/
+  );
 
   const minus3 = buildInitMessage({ ...FULL_CONFIG, hard_no_weight: '-3' });
   assert.match(minus3.embeds[0].data.description, /• \*\*Hard no\*\* = \*\*-3\*\*/);

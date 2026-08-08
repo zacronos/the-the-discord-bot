@@ -36,7 +36,7 @@ const BUTTONS = [
 function pointsParagraph(cfg) {
   const hardNo =
     cfg?.hard_no_weight == null || cfg.hard_no_weight === 'veto'
-      ? '• **Hard no** — a single one vetoes the poll (it fails outright)'
+      ? '• **Hard no** — vetoes the poll (it fails outright if there are any vetoes at closing)'
       : `• **Hard no** = **${cfg.hard_no_weight}**`;
   return ['When a poll closes, votes are totaled as points:', '• **Yes!** = +1', '• **No** = −1', '• **Abstain** = 0', hardNo].join('\n');
 }
