@@ -5,7 +5,7 @@ import { buildId } from '../discord/customId.js';
 import { getPoll } from '../store/polls.js';
 import { castVote, countVoters, getVote } from '../store/votes.js';
 import { eligibleVoterCount } from './eligibility.js';
-import { refreshPollCounts } from './pollMessage.js';
+import { pollTitle, refreshPollCounts } from './pollMessage.js';
 
 const NO_LABELS = {
   invite: "No, I'd rather not invite them, but I won't object if enough people want to",
@@ -35,9 +35,11 @@ const CHOICE_STYLES = {
 };
 
 export function buildBallot(poll, currentChoice) {
-  const content = currentChoice
+  const status = currentChoice
     ? `Your current vote: **${choiceLabel(poll.type, currentChoice)}**\nOnly you can see this. You can change your vote until the poll closes.`
     : "You haven't voted yet. Only you can see this ballot — pick an option:";
+  // The subject is user-supplied and sits in message content: never let it ping.
+  const content = `**${pollTitle(poll)}**\n\n${status}`;
   const rows = ['yes', 'no', 'hard_no', 'abstain'].map((choice) =>
     new ActionRowBuilder().addComponents(
       new ButtonBuilder()
@@ -46,7 +48,7 @@ export function buildBallot(poll, currentChoice) {
         .setStyle(CHOICE_STYLES[choice])
     )
   );
-  return { content, components: rows };
+  return { content, components: rows, allowedMentions: { parse: [] } };
 }
 
 export async function handleVoteButton(ctx, interaction, [pollIdRaw]) {

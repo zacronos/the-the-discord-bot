@@ -75,7 +75,9 @@ test('vote button opens a private ballot with all four choices', async (t) => {
   await handleVoteButton({ db }, interaction, [String(poll.id)]);
   const reply = interaction.replies[0];
   assert.equal(reply.flags, MessageFlags.Ephemeral);
+  assert.match(reply.content, /\*\*Should we invite Ada to the server\?\*\*/, 'ballot says what is being voted on');
   assert.match(reply.content, /haven't voted yet/i);
+  assert.deepEqual(reply.allowedMentions, { parse: [] }, 'user-supplied subject cannot ping');
   const ids = reply.components.flatMap((row) => row.components.map((b) => b.data.custom_id));
   assert.deepEqual(ids, [
     `ttdb:cast:${poll.id}:yes`,
@@ -116,6 +118,7 @@ test('casting records the vote, updates the ballot, and refreshes public counts'
 
   await handleCastButton({ db }, interaction, [String(poll.id), 'yes']);
   assert.equal(getVote(db, poll.id, 'u1'), 'yes');
+  assert.match(interaction.updates[0].content, /\*\*Should we invite Ada to the server\?\*\*/);
   assert.match(interaction.updates[0].content, /Yes!/);
   assert.equal(guild.message.edits.length, 1, 'public counts refreshed');
 });
