@@ -67,6 +67,44 @@ test('command definition: name, admin-only default permission, guild-only, all s
     ['points — literal points total', 'percent — of current (non-bot) members'],
     'the literal-count choice speaks of points, not votes'
   );
+  const hardNo = configCommandDefinition.options
+    .find((o) => o.name === 'hard-no-weight')
+    .options.find((o) => o.name === 'weight');
+  assert.deepEqual(
+    hardNo.choices.map((c) => c.value),
+    ['-2', '-3', '-5', '-10', 'veto'],
+    'the documented weight set is closed'
+  );
+  const cap = configCommandDefinition.options
+    .find((o) => o.name === 'max-open-polls')
+    .options.find((o) => o.name === 'value');
+  assert.equal(cap.min_value, 1);
+  assert.equal(cap.max_value, 100);
+});
+
+test('a percent threshold of exactly 100 (unanimity) is accepted', async (t) => {
+  const db = tempDb(t);
+  const interaction = fakeInteraction({
+    sub: 'pass-threshold',
+    opts: { value: 100, unit: 'percent' },
+  });
+  await handleConfigCommand({ db }, interaction);
+  assert.equal(getConfig(db, 'g1').threshold_value_invite, 100);
+  assert.equal(getConfig(db, 'g1').threshold_type_invite, 'percent');
+  assert.doesNotMatch(lastReply(interaction).content, /can never pass/);
+});
+
+test('permanent-category warns about missing category permissions but still saves', async (t) => {
+  const db = tempDb(t);
+  const interaction = fakeInteraction({
+    sub: 'permanent-category',
+    opts: { category: { id: 'cat-t' } },
+    missingPerms: ['ManageChannels', 'ManageRoles'],
+  });
+  await handleConfigCommand({ db }, interaction);
+  assert.equal(getConfig(db, 'g1').permanent_category_text_id, 'cat-t');
+  assert.match(lastReply(interaction).content, /Manage Channels/);
+  assert.match(lastReply(interaction).content, /Manage Roles/);
 });
 
 test('max-open-polls stores the cap; show reports the default until then', async (t) => {

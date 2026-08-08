@@ -193,6 +193,19 @@ test('adopts an orphaned marker message when the stored id is stale', async (t) 
   assert.equal(orphan.edits[0].embeds[0].data.footer.text, currentFooter());
 });
 
+test('re-adopts the init message after a total database loss (no stored ids at all)', async (t) => {
+  const db = tempDb(t);
+  setConfig(db, 'g1', FULL_CONFIG); // fresh db: no init_message_id / init_channel_id
+  const orphan = fakeMessage({ id: 'msg-old' });
+  const channel = fakeChannel({ id: 'chan-1', messages: [orphan] });
+  const guild = fakeGuild({ channels: [channel] });
+
+  const result = await ensureInitMessage({ db }, guild);
+  assert.equal(result, orphan);
+  assert.equal(channel.sent.length, 0, 'no duplicate posted');
+  assert.equal(getConfig(db, 'g1').init_message_id, 'msg-old');
+});
+
 test('posts a fresh init message and stores its ids when none exists', async (t) => {
   const db = tempDb(t);
   const channel = fakeChannel({ id: 'chan-1' });

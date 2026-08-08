@@ -8,6 +8,7 @@ import {
   handleCastButton,
   handleVoteButton,
 } from '../../src/features/ballot.js';
+import { setConfig } from '../../src/store/guildConfig.js';
 import { createPoll, setMessageId } from '../../src/store/polls.js';
 import { castVote, getVote } from '../../src/store/votes.js';
 import { closePoll } from '../../src/store/polls.js';
@@ -205,6 +206,82 @@ test('an uncast ballot self-deletes after 14 minutes', async (t) => {
   await scheduled[0].fn();
   assert.equal(ballot.deletedReplies, 1);
   assert.equal(await deleteBallots(poll.id, 1_000), 0, 'the timer removed the tracking too');
+});
+
+test('casting does not close early while eligible voters remain, and bots never block the close', async (t) => {
+  clearBallotTracking();
+  clearEligibilityCache();
+  clearRefreshThrottle();
+  const db = tempDb(t);
+  const closed = [];
+  const ctx = { db, closeDuePoll: async (p) => closed.push(p.id), schedule: () => {} };
+
+  const pollA = makePoll(db);
+  await handleCastButton(ctx, fakeInteraction({ guild: fakeGuild(3) }), [String(pollA.id), 'yes']);
+  assert.deepEqual(closed, [], 'one of three voting must not close the poll');
+
+  clearEligibilityCache();
+  const pollB = makePoll(db, { subject: 'Grace' });
+  const message = { edits: [], edit: async (p) => message.edits.push(p) };
+  const channel = { id: 'chan-poll', messages: { fetch: async () => message } };
+  const guildWithBot = {
+    id: 'g1',
+    channels: { fetch: async () => channel },
+    members: {
+      fetch: async () =>
+        new Map([
+          ['u1', { user: { bot: false } }],
+          ['u2', { user: { bot: false } }],
+          ['bot1', { user: { bot: true } }],
+        ]),
+    },
+  };
+  castVote(db, pollB.id, 'u2', 'no');
+  await handleCastButton({ ...ctx }, fakeInteraction({ guild: guildWithBot }), [String(pollB.id), 'abstain']);
+  assert.deepEqual(closed, [pollB.id], 'the unvoted bot must not block the everyone-voted close');
+});
+
+test('members without the poll-starter role can still vote', async (t) => {
+  clearBallotTracking();
+  clearEligibilityCache();
+  clearRefreshThrottle();
+  const db = tempDb(t);
+  setConfig(db, 'g1', {
+    poll_channel_id: 'chan-poll',
+    hard_no_weight: 'veto',
+    threshold_type: 'count',
+    threshold_value: 2,
+    permanent_category_id: 'cat-1',
+    poll_starter_role_id: 'role-1',
+  });
+  const poll = makePoll(db);
+  const interaction = fakeInteraction({ guild: fakeGuild() });
+  interaction.member = { roles: { cache: { has: () => false } } };
+
+  await handleVoteButton({ db, schedule: () => {} }, interaction, [String(poll.id)]);
+  assert.equal(interaction.replies.length, 1, 'ballot opens for non-role members');
+
+  await handleCastButton({ db, schedule: () => {} }, interaction, [String(poll.id), 'yes']);
+  assert.equal(getVote(db, poll.id, 'u1'), 'yes', 'voting is open to everyone');
+});
+
+test('a vote or cast forged from another guild records nothing', async (t) => {
+  clearBallotTracking();
+  clearEligibilityCache();
+  clearRefreshThrottle();
+  const db = tempDb(t);
+  const poll = makePoll(db); // guild g1
+  const closed = [];
+  const ctx = { db, closeDuePoll: async (p) => closed.push(p.id), schedule: () => {} };
+
+  const foreign = fakeInteraction({ guild: fakeGuild() });
+  foreign.guildId = 'g2';
+  await handleVoteButton(ctx, foreign, [String(poll.id)]);
+  assert.match(foreign.replies[0].content, /closed|not available/i, 'no ballot for foreign guilds');
+
+  await handleCastButton(ctx, foreign, [String(poll.id), 'yes']);
+  assert.equal(getVote(db, poll.id, 'u1'), undefined, 'forged cast records no vote');
+  assert.deepEqual(closed, []);
 });
 
 test('casting on a closed poll is refused and records nothing', async (t) => {

@@ -118,7 +118,7 @@ export function buildBallot(poll, currentChoice) {
 
 export async function handleVoteButton(ctx, interaction, [pollIdRaw]) {
   const poll = getPoll(ctx.db, Number(pollIdRaw));
-  if (!poll || poll.status !== 'open') {
+  if (!poll || poll.status !== 'open' || poll.guild_id !== interaction.guildId) {
     return interaction.reply({ content: 'This poll has closed.', flags: MessageFlags.Ephemeral });
   }
   const current = getVote(ctx.db, poll.id, interaction.user.id);
@@ -128,7 +128,7 @@ export async function handleVoteButton(ctx, interaction, [pollIdRaw]) {
 
 export async function handleCastButton(ctx, interaction, [pollIdRaw, choice]) {
   const poll = getPoll(ctx.db, Number(pollIdRaw));
-  if (!poll || poll.status !== 'open') {
+  if (!poll || poll.status !== 'open' || poll.guild_id !== interaction.guildId) {
     return interaction.update({ content: 'This poll has closed.', components: [] });
   }
   castVote(ctx.db, poll.id, interaction.user.id, choice);

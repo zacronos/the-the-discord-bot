@@ -220,7 +220,7 @@ server are dropped). Reaching the threshold exactly counts as passing.
 can't be determined when a percent-threshold poll comes due, the close is
 postponed to the next sweep rather than decided on bad data.
 Example with `pass-threshold 50 percent` in a 10-person server:
-6 Yes + 1 No + 1 Hard no (−3) = point total 0 → fails; 8 Yes + 2 Abstain =
+6 Yes + 1 No + 1 Hard no (−3) = point total 2 → fails; 8 Yes + 2 Abstain =
 point total 8 → passes (target 5).
 
 When a poll closes, its message is deleted from the poll channel and all

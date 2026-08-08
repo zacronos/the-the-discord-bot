@@ -339,3 +339,53 @@ test('invalid duration values are refused', async (t) => {
   assert.equal(listOpen(db, 'g1').length, 0);
   assert.match(interaction.replies[0].content, /duration/i);
 });
+
+test('TESTING ONLY durations are refused outside test mode, even if forged', async (t) => {
+  const db = tempDb(t);
+  setConfig(db, 'g1', FULL_CONFIG);
+  const interaction = fakeInteraction({
+    guild: fakeGuild(),
+    values: { name: 'Ada', duration: ['300'] }, // valid only with TTDB_TEST_MODE
+  });
+  await handleCreateModal({ db }, interaction, ['invite']);
+  assert.equal(listOpen(db, 'g1').length, 0);
+  assert.match(interaction.replies[0].content, /duration/i);
+});
+
+test('permanence duplicates are refused, but subjects do not collide across poll types', async (t) => {
+  const db = tempDb(t);
+  setConfig(db, 'g1', FULL_CONFIG);
+  createPoll(db, {
+    guildId: 'g1',
+    type: 'permanent_channel',
+    subject: 'chan-target',
+    initiatorId: 'u9',
+    channelId: 'chan-poll',
+    closesAt: 9_000_000_000,
+  });
+  const duplicate = fakeInteraction({
+    guild: fakeGuild(),
+    values: { channel: ['chan-target'], duration: ['604800'] },
+  });
+  await handleCreateModal({ db }, duplicate, ['permchan']);
+  assert.equal(listOpen(db, 'g1').length, 1);
+  assert.match(duplicate.replies[0].content, /already an open poll/i);
+
+  clearEligibilityCache();
+  const db2 = tempDb(t);
+  setConfig(db2, 'g1', FULL_CONFIG);
+  createPoll(db2, {
+    guildId: 'g1',
+    type: 'invite',
+    subject: 'chan-target', // an invite about the same string
+    initiatorId: 'u9',
+    channelId: 'chan-poll',
+    closesAt: 9_000_000_000,
+  });
+  const crossType = fakeInteraction({
+    guild: fakeGuild(),
+    values: { channel: ['chan-target'], duration: ['604800'] },
+  });
+  await handleCreateModal({ db: db2, now: () => 0 }, crossType, ['permchan']);
+  assert.equal(listOpen(db2, 'g1').length, 2, 'same subject under a different type is allowed');
+});
