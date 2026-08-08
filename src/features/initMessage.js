@@ -21,7 +21,7 @@ const DESCRIPTION = [
   '**anonymous** — nobody can see how anyone voted. While a poll runs, only',
   'who started it, what it asks, response counts, and the closing time are',
   'public. Results are delivered privately to whoever started the poll.',
-].join('\n');
+].join(' ');
 const BUTTONS = [
   { customId: buildId('start', 'invite'), label: 'Start a vote on inviting someone', style: ButtonStyle.Primary },
   {
@@ -36,16 +36,23 @@ const BUTTONS = [
 function pointsParagraph(cfg) {
   const hardNo =
     cfg?.hard_no_weight == null || cfg.hard_no_weight === 'veto'
-      ? '• **Hard no** — vetoes the poll (it fails outright if there are any vetoes at closing)'
-      : `• **Hard no** = **${cfg.hard_no_weight}**`;
-  return ['When a poll closes, votes are totaled as points:', '• **Yes!** = +1', '• **No** = −1', '• **Abstain** = 0', hardNo].join('\n');
+      ? '• Hard no  =>  **vetoes the poll** (it fails outright if there are any vetoes at closing)'
+      : `• Hard no  =>  **${cfg.hard_no_weight.replace('-', '−')}**`;
+  return [
+    '__When a poll closes, votes are totaled as points__',
+    '• Yes  =>  **+1**',
+    '• No  =>  **−1**',
+    '• Abstain  =>  **0**',
+    hardNo,
+  ].join('\n');
 }
 
 // The currently-configured pass thresholds, one bullet per poll type.
 function thresholdList(cfg) {
-  const line = (label, spec) => `• ${label}: ${spec ? `**${formatThreshold(spec)}**` : '*not set*'}`;
+  const line = (label, spec) => `• ${label}: ${spec ? `_${formatThreshold(spec)}_` : '_not set_'}`;
   return [
-    '**Current pass thresholds** — the point total at poll closing must be at least:',
+    '__Current pass thresholds__',
+    'The point total at poll closing must be at least:',
     line('Invite polls', thresholdFor(cfg, 'invite')),
     line('Channel-permanence polls', thresholdFor(cfg, 'permanent_channel')),
   ].join('\n');

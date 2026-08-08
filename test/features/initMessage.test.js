@@ -74,17 +74,22 @@ function fakeGuild({ id = 'g1', channels = [] } = {}) {
 test('the init message explains point totaling as a bullet list that tracks the hard-no setting', () => {
   const veto = buildInitMessage(FULL_CONFIG); // hard_no_weight: 'veto'
   const description = veto.embeds[0].data.description;
-  assert.match(description, /votes are totaled as points:/);
-  assert.match(description, /• \*\*Yes!\*\* = \+1/);
-  assert.match(description, /• \*\*No\*\* = −1/);
-  assert.match(description, /• \*\*Abstain\*\* = 0/);
+  assert.match(description, /__When a poll closes, votes are totaled as points__\n/);
+  assert.match(description, /• Yes {2}=> {2}\*\*\+1\*\*/);
+  assert.match(description, /• No {2}=> {2}\*\*−1\*\*/);
+  assert.match(description, /• Abstain {2}=> {2}\*\*0\*\*/);
   assert.match(
     description,
-    /• \*\*Hard no\*\* — vetoes the poll \(it fails outright if there are any vetoes at closing\)/
+    /• Hard no {2}=> {2}\*\*vetoes the poll\*\* \(it fails outright if there are any vetoes at closing\)/
+  );
+  assert.doesNotMatch(
+    description.split('\n')[0],
+    /Votes are\n/,
+    'intro renders as one flowing paragraph'
   );
 
   const minus3 = buildInitMessage({ ...FULL_CONFIG, hard_no_weight: '-3' });
-  assert.match(minus3.embeds[0].data.description, /• \*\*Hard no\*\* = \*\*-3\*\*/);
+  assert.match(minus3.embeds[0].data.description, /• Hard no {2}=> {2}\*\*−3\*\*/);
   assert.notEqual(
     veto.embeds[0].data.footer.text,
     minus3.embeds[0].data.footer.text,
@@ -95,15 +100,16 @@ test('the init message explains point totaling as a bullet list that tracks the 
 test('the init message ends with the per-poll-type thresholds and tracks changes to them', () => {
   const base = buildInitMessage(FULL_CONFIG); // legacy shared threshold: 3 votes
   const description = base.embeds[0].data.description;
-  assert.match(description, /• Invite polls: \*\*3 points total\*\*/);
-  assert.match(description, /• Channel-permanence polls: \*\*3 points total\*\*/);
+  assert.match(description, /__Current pass thresholds__\nThe point total at poll closing must be at least:/);
+  assert.match(description, /• Invite polls: _3 points total_/);
+  assert.match(description, /• Channel-permanence polls: _3 points total_/);
 
   const changed = buildInitMessage({
     ...FULL_CONFIG,
     threshold_type_permchan: 'percent',
     threshold_value_permchan: 50,
   });
-  assert.match(changed.embeds[0].data.description, /• Channel-permanence polls: \*\*50% of current members\*\*/);
+  assert.match(changed.embeds[0].data.description, /• Channel-permanence polls: _50% of current members_/);
   assert.notEqual(
     base.embeds[0].data.footer.text,
     changed.embeds[0].data.footer.text,
