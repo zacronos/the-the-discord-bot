@@ -29,9 +29,10 @@ which also records every design decision.)*
    ON **SERVER MEMBERS INTENT** — the bot needs it to know who has and
    hasn't voted (for early poll closes and percent-based thresholds).
 3. Still on the **Bot** tab, press **Reset Token** and copy the token.
-4. On **General Information**, copy the **Application ID**. While there, you
-   can also upload [assets/bot-icon-1024.png](assets/bot-icon-1024.png) as
-   the **App Icon** (vector source: [assets/bot-icon.svg](assets/bot-icon.svg)).
+4. On **General Information**, copy the **Application ID**. (No need to
+   upload an App Icon — the bot pushes
+   [assets/bot-icon-1024.png](assets/bot-icon-1024.png) itself on startup;
+   vector source: [assets/bot-icon.svg](assets/bot-icon.svg).)
 5. In the shell you'll run the bot from, set both values (session-only;
    alternatively put them in a gitignored `.env` — see
    [Development](#development)):
@@ -101,6 +102,19 @@ bot checks its own permissions there and warns you about anything missing
 (e.g. Mention Everyone in the poll channel, Manage Channels/Roles on the
 category). A percent threshold above 100 is rejected outright — it could
 never pass.
+
+### The bot's profile keeps itself up to date
+
+On every startup and after every `/ttdb-config` change, the bot syncs its
+own Discord profile:
+
+- **About Me** — until the server is fully configured it reads
+  "admins: use /ttdb-config to set up The The Admin-Polling Bot"; once
+  configured it points members at the poll channel by name ("Go to the
+  #votes channel to start a vote! …") and follows along if you change
+  `poll-channel`.
+- **App icon** — pushed from `assets/bot-icon-1024.png` whenever the file
+  changes (tracked by content hash, so no needless uploads).
 
 ## How the poll channel works
 

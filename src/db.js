@@ -32,6 +32,10 @@ CREATE TABLE IF NOT EXISTS polls (
   closed_at INTEGER,
   veto_count INTEGER
 );
+CREATE TABLE IF NOT EXISTS app_state (
+  key TEXT PRIMARY KEY,
+  value TEXT
+);
 CREATE TABLE IF NOT EXISTS votes (
   poll_id INTEGER NOT NULL,
   user_id TEXT NOT NULL,

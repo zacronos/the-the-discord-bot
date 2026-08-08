@@ -268,6 +268,8 @@ export async function handleConfigCommand(ctx, interaction) {
     } else {
       lines.push('All required settings are in place.');
     }
+    // Keep the bot's profile description in step with the config state.
+    await ctx.ensureProfile?.().catch(() => {});
   }
   return replyEphemeral(interaction, lines.join('\n'));
 }

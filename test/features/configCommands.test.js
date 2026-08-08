@@ -188,6 +188,18 @@ test('an ensureInitMessage failure still saves the setting and reports the probl
   assert.match(lastReply(interaction).content, /boom/);
 });
 
+test('successful changes trigger the profile sync hook; show does not', async (t) => {
+  const db = tempDb(t);
+  const calls = [];
+  const ctx = { db, ensureProfile: async () => calls.push(1) };
+
+  await handleConfigCommand(ctx, fakeInteraction({ sub: 'poll-channel', opts: { channel: { id: 'c1' } } }));
+  assert.equal(calls.length, 1);
+
+  await handleConfigCommand(ctx, fakeInteraction({ sub: 'show' }));
+  assert.equal(calls.length, 1, 'show is read-only');
+});
+
 test('show on a fresh guild lists unset fields and what is still needed', async (t) => {
   const db = tempDb(t);
   const interaction = fakeInteraction({ sub: 'show' });

@@ -12,6 +12,7 @@ import { permanentChannelAction } from './features/actions/permanentChannel.js';
 import { auditGuildPermissions } from './features/audit.js';
 import { closePollPipeline, handleGuildLeave, handleResendButton } from './features/pollClose.js';
 import { handleCreateModal, handleStartButton } from './features/pollCreate.js';
+import { ensureProfile } from './features/profile.js';
 import { startScheduler } from './features/scheduler.js';
 
 const env = loadEnv();
@@ -26,6 +27,7 @@ const ctx = {
 };
 ctx.ensureInitMessage = (guild) => ensureInitMessage(ctx, guild);
 ctx.closeDuePoll = (poll) => closePollPipeline(ctx, poll);
+ctx.ensureProfile = () => ensureProfile(ctx);
 
 const router = createRouter(ctx);
 router.command('ttdb-config', handleConfigCommand);
@@ -53,6 +55,11 @@ client.once(Events.ClientReady, async () => {
     } catch (err) {
       console.error(`[ttdb] permission audit for guild ${guild.id}: ${err.message}`);
     }
+  }
+  try {
+    await ctx.ensureProfile();
+  } catch (err) {
+    console.error(`[ttdb] profile sync: ${err.message}`);
   }
   startScheduler(ctx);
 });
