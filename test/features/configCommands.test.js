@@ -60,6 +60,13 @@ test('command definition: name, admin-only default permission, guild-only, all s
       'show',
     ].sort()
   );
+  const passThreshold = configCommandDefinition.options.find((o) => o.name === 'pass-threshold');
+  const unit = passThreshold.options.find((o) => o.name === 'unit');
+  assert.deepEqual(
+    unit.choices.map((c) => c.name),
+    ['points — literal points total', 'percent — of current (non-bot) members'],
+    'the literal-count choice speaks of points, not votes'
+  );
 });
 
 test('max-open-polls stores the cap; show reports the default until then', async (t) => {

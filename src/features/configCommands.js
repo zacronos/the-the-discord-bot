@@ -62,11 +62,11 @@ export const configCommandDefinition = new SlashCommandBuilder()
   .addSubcommand((sub) =>
     sub
       .setName('pass-threshold')
-      .setDescription('Vote total a poll needs to pass (required)')
+      .setDescription('Points total a poll needs to pass (required)')
       .addNumberOption((opt) =>
         opt
           .setName('value')
-          .setDescription('The number — a vote total, or a percent')
+          .setDescription('The number — a points total, or a percent')
           .setMinValue(0)
           .setRequired(true)
       )
@@ -76,7 +76,7 @@ export const configCommandDefinition = new SlashCommandBuilder()
           .setDescription('How to interpret the value')
           .setRequired(true)
           .addChoices(
-            { name: 'votes — literal vote total', value: 'votes' },
+            { name: 'points — literal points total', value: 'votes' },
             { name: 'percent — of current (non-bot) members', value: 'percent' }
           )
       )
@@ -277,7 +277,7 @@ export async function handleConfigCommand(ctx, interaction) {
       if (unit === 'percent' && value > 100) {
         return replyEphemeral(
           interaction,
-          '⚠️ A percent threshold above 100 can never pass (the vote total can never exceed the member count). Nothing was saved.'
+          '⚠️ A percent threshold above 100 can never pass (the point total can never exceed the member count). Nothing was saved.'
         );
       }
       const scope = interaction.options.getString('poll-type') ?? 'both';

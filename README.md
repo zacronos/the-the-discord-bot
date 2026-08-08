@@ -90,7 +90,7 @@ settings and refuse to start until all four required ones have values.
 |---|---|---|
 | `poll-channel channel:<#channel>` | yes | The text channel polls are posted in |
 | `hard-no-weight weight:<-2 \| -3 \| -5 \| -10 \| veto>` | yes | How strongly a "Hard no" vote counts against a poll's total; `veto` means a single hard no fails the poll |
-| `pass-threshold value:<number> unit:<votes \| percent> poll-type:<invite \| channel-permanence \| both>` | yes | The points total needed to pass: a literal points total, or a percent of the server's current (non-bot) members. `poll-type` (default: both) gives each poll type its own threshold |
+| `pass-threshold value:<number> unit:<points \| percent> poll-type:<invite \| channel-permanence \| both>` | yes | The points total needed to pass: a literal points total, or a percent of the server's current (non-bot) members. `poll-type` (default: both) gives each poll type its own threshold |
 | `max-open-polls value:<1–100>` | no | How many polls may be open at the same time; default 10 |
 | `permanent-category category:<category> kind:<text \| voice>` | yes (text) | The category a channel moves into when a permanence poll passes. `kind` (default: text) sets separate categories for text and voice channels; until a voice category is set, voice channels can't be nominated |
 | `invite-channel channel:<#channel>` | no | Where invite links from passed invite polls land; unset = the server's system channel |
