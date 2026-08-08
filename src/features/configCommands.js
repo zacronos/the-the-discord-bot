@@ -277,7 +277,9 @@ export async function handleConfigCommand(ctx, interaction) {
       setConfig(db, guildId, patch);
       const scopeText =
         scope === 'both' ? 'Both poll types' : scope === 'invite' ? 'Invite polls' : 'Channel-permanence polls';
-      lines.push(`${scopeText} now pass when the vote total reaches ${formatThreshold({ type, value })}.`);
+      lines.push(
+        `${scopeText} now pass when the vote total at poll closing is at least ${formatThreshold({ type, value })}.`
+      );
       saved = true;
       break;
     }
