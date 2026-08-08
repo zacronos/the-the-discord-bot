@@ -5,6 +5,7 @@ import { buildId } from '../discord/customId.js';
 import { getConfig } from '../store/guildConfig.js';
 import { createPoll, listOpen, setMessageId } from '../store/polls.js';
 import {
+  allPermanentCategoryIds,
   channelKind,
   maxOpenPolls,
   missingRequiredSettings,
@@ -32,9 +33,25 @@ export function buildCreationExplanation() {
   ].join('\n\n');
 }
 
-// Deletion candidates: channels inside the configured permanent categories.
-// Discord's channel select cannot filter by category, so the dropdown is a
-// bot-built string select of exactly these channels (25-option cap).
+const channelOption = (channel) => ({
+  label: channel.type === 2 ? `🔊 ${channel.name}` : `#${channel.name}`,
+  value: channel.id,
+});
+
+// Sort and enforce Discord's 25-option select limit.
+function finalizeChannelOptions(options, what) {
+  options.sort((a, b) => a.label.localeCompare(b.label));
+  if (options.length > 25) {
+    console.warn(`[ttdb] ${what} dropdown truncated to 25 of ${options.length} eligible channels`);
+    return options.slice(0, 25);
+  }
+  return options;
+}
+
+// Deletion candidates: channels inside the two managed permanent categories
+// (+ the legacy one). "Other" permanent groups are protected and never
+// offered. Discord's channel select cannot filter by category, so the
+// dropdown is a bot-built string select of exactly these channels.
 export function deletableChannelOptions(cfg, allChannels) {
   const allowed = new Set(
     [cfg.permanent_category_id, cfg.permanent_category_text_id, cfg.permanent_category_voice_id].filter(Boolean)
@@ -42,15 +59,24 @@ export function deletableChannelOptions(cfg, allChannels) {
   const options = [];
   for (const channel of allChannels.values()) {
     if (!channel || !allowed.has(channel.parentId)) continue;
-    const label = channel.type === 2 ? `🔊 ${channel.name}` : `#${channel.name}`;
-    options.push({ label, value: channel.id });
+    options.push(channelOption(channel));
   }
-  options.sort((a, b) => a.label.localeCompare(b.label));
-  if (options.length > 25) {
-    console.warn(`[ttdb] deletion dropdown truncated to 25 of ${options.length} eligible channels`);
-    return options.slice(0, 25);
+  return finalizeChannelOptions(options, 'deletion');
+}
+
+// Permanence candidates: text/voice channels NOT already inside any
+// permanent group (managed categories, legacy, or other permanent groups).
+export function permanentizableChannelOptions(cfg, allChannels) {
+  const excluded = allPermanentCategoryIds(cfg);
+  const options = [];
+  for (const channel of allChannels.values()) {
+    if (!channel) continue;
+    const kind = channel.type ?? 0;
+    if (kind !== 0 && kind !== 2) continue; // text and voice only
+    if (excluded.has(channel.parentId)) continue;
+    options.push(channelOption(channel));
   }
-  return options;
+  return finalizeChannelOptions(options, 'permanence');
 }
 
 // Raw component payload (Components V2): 10 = Text Display, 18 = Label,
@@ -63,17 +89,14 @@ export function buildCreateModal(typePart, cfg, testMode = false, { channelOptio
           label: 'Who should we invite?',
           component: { type: 4, custom_id: 'name', style: 1, min_length: 1, max_length: 80, required: true },
         }
-      : typePart === 'delchan'
-        ? {
-            type: 18,
-            label: 'Which channel should be deleted?',
-            component: { type: 3, custom_id: 'channel', required: true, options: channelOptions },
-          }
-        : {
-            type: 18,
-            label: 'Which channel should become permanent?',
-            component: { type: 8, custom_id: 'channel', channel_types: [0, 2], required: true },
-          };
+      : {
+          type: 18,
+          label:
+            typePart === 'delchan'
+              ? 'Which channel should be deleted?'
+              : 'Which channel should become permanent?',
+          component: { type: 3, custom_id: 'channel', required: true, options: channelOptions },
+        };
   const TITLES = {
     invite: 'Start a vote: invite someone',
     permchan: 'Start a vote: channel permanence',
@@ -142,19 +165,24 @@ export async function handleStartButton(ctx, interaction, [typePart]) {
       `⚠️ Only members with <@&${cfg.poll_starter_role_id}> can start polls on this server.`
     );
   }
-  if (typePart === 'delchan') {
-    if (!thresholdFor(cfg, 'delete_channel')) {
-      return replyEphemeral(
-        interaction,
-        '⚠️ Channel-deletion polls aren\'t configured yet — an admin must run `/ttdb-config pass-threshold poll-type:channel-deletion` first.'
-      );
-    }
+  if (typePart === 'delchan' && !thresholdFor(cfg, 'delete_channel')) {
+    return replyEphemeral(
+      interaction,
+      '⚠️ Channel-deletion polls aren\'t configured yet — an admin must run `/ttdb-config pass-threshold poll-type:channel-deletion` first.'
+    );
+  }
+  if (typePart === 'delchan' || typePart === 'permchan') {
     const allChannels = await interaction.guild.channels.fetch();
-    const channelOptions = deletableChannelOptions(cfg, allChannels);
+    const channelOptions =
+      typePart === 'delchan'
+        ? deletableChannelOptions(cfg, allChannels)
+        : permanentizableChannelOptions(cfg, allChannels);
     if (channelOptions.length === 0) {
       return replyEphemeral(
         interaction,
-        '⚠️ There are no channels in the permanent categories to delete.'
+        typePart === 'delchan'
+          ? '⚠️ There are no channels in the permanent categories to delete.'
+          : '⚠️ Every text and voice channel is already in a permanent group.'
       );
     }
     return interaction.showModal(buildCreateModal(typePart, cfg, ctx.env?.testMode, { channelOptions }));
@@ -236,8 +264,8 @@ export async function handleCreateModal(ctx, interaction, [typePart]) {
           : '⚠️ No permanent category is configured — an admin must run `/ttdb-config permanent-category`.'
       );
     }
-    if (channel.parentId === categoryId) {
-      return replyEphemeral(interaction, `⚠️ <#${channelId}> is already in the permanent category.`);
+    if (allPermanentCategoryIds(cfg).has(channel.parentId)) {
+      return replyEphemeral(interaction, `⚠️ <#${channelId}> is already in a permanent group.`);
     }
     subject = channelId;
   }

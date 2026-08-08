@@ -285,6 +285,8 @@ Native Windows Task Scheduler logon-trigger task: no third-party binary (NSSM) o
 
 ## Post-plan change log
 
+- [X] 2026-08-08 (owner request): new multi-value `other-permanent-groups` config (add/remove one category per invocation; JSON list column). Channels in these groups are protected: excluded from permanence nominations and never offered for deletion. The permanence poll's channel picker became a bot-built string select (like deletion's) listing only channels outside every permanent group; submit-side validation broadened to match.
+
 - [X] 2026-08-08 (owner request): the deletion poll's channel dropdown now shows only channels from the configured permanent categories. Discord's ChannelSelect can't filter by category, so it became a bot-built string select (options enumerated at button-press time, `#`/🔊 labels, 25-option cap, empty-category refusal); submit-side category validation retained as defense-in-depth.
 
 - [X] 2026-08-08 (owner request): the shared member snapshot's TTL was raised from 10 minutes to 1 hour, and the snapshot (member ids + bot flags + eligible count) is persisted in a new `member_cache` sqlite table with its expiration timestamp, so restarts no longer re-spend the rate-limited REQUEST_GUILD_MEMBERS budget.

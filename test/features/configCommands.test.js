@@ -53,6 +53,7 @@ test('command definition: name, admin-only default permission, guild-only, all s
       'hard-no-weight',
       'invite-channel',
       'max-open-polls',
+      'other-permanent-groups',
       'pass-threshold',
       'permanent-category',
       'poll-channel',
@@ -92,6 +93,40 @@ test('a percent threshold of exactly 100 (unanimity) is accepted', async (t) => 
   assert.equal(getConfig(db, 'g1').threshold_value_invite, 100);
   assert.equal(getConfig(db, 'g1').threshold_type_invite, 'percent');
   assert.doesNotMatch(lastReply(interaction).content, /can never pass/);
+});
+
+test('other-permanent-groups adds and removes categories from the protected list', async (t) => {
+  const db = tempDb(t);
+  await handleConfigCommand(
+    { db },
+    fakeInteraction({ sub: 'other-permanent-groups', opts: { category: { id: 'cat-a' } } })
+  );
+  await handleConfigCommand(
+    { db },
+    fakeInteraction({ sub: 'other-permanent-groups', opts: { category: { id: 'cat-b' } } })
+  );
+  await handleConfigCommand(
+    { db },
+    fakeInteraction({ sub: 'other-permanent-groups', opts: { category: { id: 'cat-a' } } })
+  );
+  assert.deepEqual(
+    JSON.parse(getConfig(db, 'g1').other_permanent_category_ids),
+    ['cat-a', 'cat-b'],
+    'adding is idempotent'
+  );
+
+  await handleConfigCommand(
+    { db },
+    fakeInteraction({
+      sub: 'other-permanent-groups',
+      opts: { category: { id: 'cat-a' }, action: 'remove' },
+    })
+  );
+  assert.deepEqual(JSON.parse(getConfig(db, 'g1').other_permanent_category_ids), ['cat-b']);
+
+  const show = fakeInteraction({ sub: 'show' });
+  await handleConfigCommand({ db }, show);
+  assert.match(lastReply(show).content, /Other permanent groups: <#cat-b>/);
 });
 
 test('permanent-category warns about missing category permissions but still saves', async (t) => {

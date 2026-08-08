@@ -94,6 +94,7 @@ settings and refuse to start until all four required ones have values.
 | `max-open-polls value:<1–100>` | no | How many polls may be open at the same time; default 10 |
 | `permanent-category category:<category> kind:<text \| voice>` | yes (text) | The category a channel moves into when a permanence poll passes. `kind` (default: text) sets separate categories for text and voice channels; until a voice category is set, voice channels can't be nominated |
 | `invite-channel channel:<#channel>` | no | Where invite links from passed invite polls land; unset = the server's system channel |
+| `other-permanent-groups category:<category> action:<add \| remove>` | no | Extra categories treated as permanent: their channels can't be nominated for permanence, and are never offered for deletion (run once per category; `action` defaults to add) |
 | `poll-starter-role role:<@role>` | no | Restrict poll *starting* to one role; unset = anyone. Voting is always open to everyone |
 | `show` | — | Show current settings and anything still missing |
 
@@ -188,9 +189,10 @@ an admin to create the invite manually.
 
 ### Start a vote on making a channel permanent
 
-Asks which channel — text or voice — should become permanent (channels
-already in their permanent category can't be nominated) and the poll
-duration. If the poll passes, the bot **moves the channel into the
+Asks which channel — text or voice — should become permanent. The dropdown
+lists only channels **not already inside any permanent group** (the two
+configured permanent categories and every `other-permanent-groups`
+category are excluded; Discord select menus cap the list at 25). If the poll passes, the bot **moves the channel into the
 permanent category for its kind** (text channels into the `kind:text`
 category, voice channels into the `kind:voice` one — autodetected) **and
 syncs its permission overwrites** with it. Voice channels can only be

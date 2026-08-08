@@ -22,6 +22,7 @@ CREATE TABLE IF NOT EXISTS guild_config (
   permanent_category_id TEXT,     -- legacy; text channels fall back to it
   permanent_category_text_id TEXT,
   permanent_category_voice_id TEXT,
+  other_permanent_category_ids TEXT, -- JSON array: protected groups, not managed by deletion polls
   invite_channel_id TEXT,         -- optional (Q3); default landing = system channel
   poll_starter_role_id TEXT,      -- optional (Q6); null = anyone may start polls
   max_open_polls INTEGER,         -- optional; null = default cap of 10
@@ -87,6 +88,7 @@ export function openDb(path) {
     'ALTER TABLE guild_config ADD COLUMN max_open_polls INTEGER',
     'ALTER TABLE guild_config ADD COLUMN threshold_type_delchan TEXT',
     'ALTER TABLE guild_config ADD COLUMN threshold_value_delchan REAL',
+    'ALTER TABLE guild_config ADD COLUMN other_permanent_category_ids TEXT',
   ]) {
     try {
       db.exec(alter);

@@ -24,6 +24,7 @@ function fakeGuild() {
   const sent = [];
   const pollChannel = {
     id: 'chan-poll',
+    name: 'polls',
     sent,
     send: async (payload) => {
       sent.push(payload);
@@ -34,12 +35,14 @@ function fakeGuild() {
   const inCategory = { id: 'chan-owned', name: 'perm-chat', parentId: 'cat-1' };
   const voiceChannel = { id: 'chan-voice', name: 'lounge', type: 2, parentId: null };
   const voiceOwned = { id: 'chan-voice-owned', name: 'perm-voice', type: 2, parentId: 'cat-v' };
+  const otherProtected = { id: 'chan-other', name: 'archive', parentId: 'cat-other' };
   const byId = new Map([
     ['chan-poll', pollChannel],
     ['chan-target', targetChannel],
     ['chan-owned', inCategory],
     ['chan-voice', voiceChannel],
     ['chan-voice-owned', voiceOwned],
+    ['chan-other', otherProtected],
   ]);
   return {
     id: 'g1',
@@ -97,12 +100,14 @@ test('buildCreateModal (invite) carries explanation, name input, and duration se
   assert.equal(duration.component.options.find((o) => o.default).value, '604800');
 });
 
-test('buildCreateModal (permchan) offers text and voice channels', () => {
-  const modal = buildCreateModal('permchan', { ...FULL_CONFIG }, false);
+test('buildCreateModal (permchan) uses a bot-built option list', () => {
+  const modal = buildCreateModal('permchan', { ...FULL_CONFIG }, false, {
+    channelOptions: [{ label: '#a', value: 'a' }],
+  });
   assert.equal(modal.custom_id, 'ttdb:create:permchan');
   const channel = modal.components.find((c) => c.component?.custom_id === 'channel');
-  assert.equal(channel.component.type, 8);
-  assert.deepEqual(channel.component.channel_types, [0, 2]);
+  assert.equal(channel.component.type, 3);
+  assert.deepEqual(channel.component.options, [{ label: '#a', value: 'a' }]);
 });
 
 test('the creation explanation stops after the closing rules — scoring lives in the init message', () => {
@@ -305,6 +310,61 @@ test('the deletion button refuses when the permanent categories are empty', asyn
   await handleStartButton({ db }, interaction, ['delchan']);
   assert.equal(interaction.shown.length, 0);
   assert.match(interaction.replies[0].content, /no channels in the permanent categories/i);
+});
+
+test('other permanent groups are protected from the deletion dropdown', async (t) => {
+  const db = tempDb(t);
+  setConfig(db, 'g1', { ...FULL_CONFIG, other_permanent_category_ids: JSON.stringify(['cat-other']) });
+  const interaction = fakeInteraction({ guild: fakeGuild() });
+  await handleStartButton({ db }, interaction, ['delchan']);
+
+  const select = interaction.shown[0].components.find((c) => c.component?.custom_id === 'channel');
+  assert.deepEqual(
+    select.component.options.map((o) => o.value),
+    ['chan-owned'],
+    'only the managed categories are deletable — never the other groups'
+  );
+});
+
+test('the permanence dropdown excludes channels already in any permanent group', async (t) => {
+  const db = tempDb(t);
+  setConfig(db, 'g1', {
+    ...FULL_CONFIG,
+    permanent_category_voice_id: 'cat-v',
+    other_permanent_category_ids: JSON.stringify(['cat-other']),
+  });
+  const interaction = fakeInteraction({ guild: fakeGuild() });
+  await handleStartButton({ db }, interaction, ['permchan']);
+
+  const select = interaction.shown[0].components.find((c) => c.component?.custom_id === 'channel');
+  assert.equal(select.component.type, 3);
+  assert.deepEqual(
+    select.component.options,
+    [
+      { label: '#polls', value: 'chan-poll' },
+      { label: '#target', value: 'chan-target' },
+      { label: '🔊 lounge', value: 'chan-voice' },
+    ],
+    'members of cat-1, cat-v, and cat-other are all excluded'
+  );
+});
+
+test('the permanence button refuses when every channel is already permanent', async (t) => {
+  const db = tempDb(t);
+  setConfig(db, 'g1', FULL_CONFIG);
+  const byId = new Map([
+    ['chan-a', { id: 'chan-a', name: 'a', parentId: 'cat-1' }],
+    ['chan-b', { id: 'chan-b', name: 'b', type: 2, parentId: 'cat-1' }],
+  ]);
+  const guild = {
+    id: 'g1',
+    channels: { fetch: async (id) => (id === undefined ? byId : byId.get(id)) },
+    members: { fetch: async () => new Map() },
+  };
+  const interaction = fakeInteraction({ guild });
+  await handleStartButton({ db }, interaction, ['permchan']);
+  assert.equal(interaction.shown.length, 0);
+  assert.match(interaction.replies[0].content, /already in a permanent group/i);
 });
 
 test('the deletion dropdown caps at the 25-option component limit', async (t) => {

@@ -17,6 +17,7 @@ const FIELDS = new Set([
   'permanent_category_id',
   'permanent_category_text_id',
   'permanent_category_voice_id',
+  'other_permanent_category_ids',
   'invite_channel_id',
   'poll_starter_role_id',
   'max_open_polls',

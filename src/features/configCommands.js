@@ -127,6 +127,24 @@ export const configCommandDefinition = new SlashCommandBuilder()
   )
   .addSubcommand((sub) =>
     sub
+      .setName('other-permanent-groups')
+      .setDescription('Categories protected as permanent but not managed by deletion polls (optional)')
+      .addChannelOption((opt) =>
+        opt
+          .setName('category')
+          .setDescription('The category to add or remove')
+          .addChannelTypes(ChannelType.GuildCategory)
+          .setRequired(true)
+      )
+      .addStringOption((opt) =>
+        opt
+          .setName('action')
+          .setDescription('Add or remove this category (default: add)')
+          .addChoices({ name: 'add', value: 'add' }, { name: 'remove', value: 'remove' })
+      )
+  )
+  .addSubcommand((sub) =>
+    sub
       .setName('max-open-polls')
       .setDescription('How many polls may be open at the same time (default: 10)')
       .addIntegerOption((opt) =>
@@ -178,6 +196,30 @@ export function permanentCategoryFor(cfg, kind) {
 
 export const channelKind = (channel) =>
   channel?.type === ChannelType.GuildVoice ? 'voice' : 'text';
+
+// "Other" permanent groups: categories protected as permanent (excluded
+// from permanence nominations) but not managed by deletion polls.
+export function otherPermanentCategoryIds(cfg) {
+  try {
+    const parsed = JSON.parse(cfg?.other_permanent_category_ids ?? '[]');
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+// Every category considered permanent: the managed text/voice (+legacy)
+// categories plus all other permanent groups.
+export function allPermanentCategoryIds(cfg) {
+  return new Set(
+    [
+      cfg?.permanent_category_id,
+      cfg?.permanent_category_text_id,
+      cfg?.permanent_category_voice_id,
+      ...otherPermanentCategoryIds(cfg),
+    ].filter(Boolean)
+  );
+}
 
 // Required-config gate (Q8). Returns the /ttdb-config subcommand names still
 // unset; empty array means polls may start. Voice categories are optional —
@@ -240,6 +282,13 @@ function renderShow(cfg = {}) {
     }`,
     `• Permanent category — text channels (required): ${textCategory ? `<#${textCategory}>` : '*not set*'}`,
     `• Permanent category — voice channels: ${voiceCategory ? `<#${voiceCategory}>` : "*not set* — voice channels can't be nominated"}`,
+    `• Other permanent groups: ${
+      otherPermanentCategoryIds(cfg).length > 0
+        ? otherPermanentCategoryIds(cfg)
+            .map((id) => `<#${id}>`)
+            .join(', ')
+        : '*none*'
+    }`,
     `• Invite landing channel: ${set(cfg.invite_channel_id, (id) => `<#${id}>`)}${
       cfg.invite_channel_id ? '' : ' — defaults to the server system channel'
     }`,
@@ -349,6 +398,25 @@ export async function handleConfigCommand(ctx, interaction) {
       setConfig(db, guildId, { invite_channel_id: channel.id });
       lines.push(`Invite links from passed polls will land in <#${channel.id}>.`);
       lines.push(...permissionWarnings(interaction, channel, INVITE_PERMS, 'in that channel'));
+      saved = true;
+      break;
+    }
+    case 'other-permanent-groups': {
+      const category = interaction.options.getChannel('category', true);
+      const action = interaction.options.getString('action') ?? 'add';
+      const current = otherPermanentCategoryIds(getConfig(db, guildId));
+      const next =
+        action === 'remove'
+          ? current.filter((id) => id !== category.id)
+          : current.includes(category.id)
+            ? current
+            : [...current, category.id];
+      setConfig(db, guildId, { other_permanent_category_ids: JSON.stringify(next) });
+      lines.push(
+        action === 'remove'
+          ? `<#${category.id}> is no longer treated as an other permanent group.`
+          : `<#${category.id}> is now an other permanent group — its channels are protected from permanence polls and are not offered for deletion.`
+      );
       saved = true;
       break;
     }
