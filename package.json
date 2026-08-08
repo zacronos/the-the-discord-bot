@@ -9,11 +9,11 @@
     "node": ">=24"
   },
   "scripts": {
-    "start": "node src/index.js",
+    "start": "node --env-file-if-exists=.env src/index.js",
     "test": "node --test",
-    "register-commands": "node scripts/register-commands.mjs",
-    "invite-url": "node scripts/invite-url.mjs",
-    "health-check": "node scripts/health-check.mjs"
+    "register-commands": "node --env-file-if-exists=.env scripts/register-commands.mjs",
+    "invite-url": "node --env-file-if-exists=.env scripts/invite-url.mjs",
+    "health-check": "node --env-file-if-exists=.env scripts/health-check.mjs"
   },
   "dependencies": {
     "discord.js": "^14.27.0"

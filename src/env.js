@@ -1,6 +1,6 @@
-// Central environment configuration. Secrets are read from the environment
-// only -- set them in your shell, or keep KEY=value lines in a gitignored
-// .env and run commands via `node --env-file=.env ...` (Node >= 20.6).
+// Central environment configuration. Values come from the gitignored .env
+// file in the repo root (plain KEY=value lines) -- the npm scripts and the
+// startup launcher load it natively via node's --env-file support.
 
 const DEFAULT_REQUIRED = ['DISCORD_TOKEN', 'DISCORD_APP_ID'];
 
@@ -9,8 +9,8 @@ export function loadEnv({ env = process.env, required = DEFAULT_REQUIRED } = {})
   if (missing.length > 0) {
     throw new Error(
       `Missing required environment variable(s): ${missing.join(', ')}. ` +
-        'Set them in your shell, or in a gitignored .env file used with ' +
-        '`node --env-file=.env ...`. See the "Development" section of README.md.'
+        'Add them to the gitignored .env file in the repo root. ' +
+        'See the "Development" section of README.md.'
     );
   }
   return {

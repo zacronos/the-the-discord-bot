@@ -14,8 +14,7 @@ which also records every design decision.)*
 2. [Invite the bot to your server](#inviting-the-bot-to-a-server).
 3. [Register the slash commands and configure](#configuring-the-bot) with
    `/ttdb-config` — polls unlock once the four required settings are set.
-4. Run the bot: `npm start` in a shell with the env vars set (or
-   `node --env-file=.env src/index.js`), or set up
+4. Run the bot: `npm start`, or set up
    [auto-start on Windows](#running-on-startup-windows).
 
 ## Creating your Discord application
@@ -33,17 +32,17 @@ which also records every design decision.)*
    upload an App Icon — the bot pushes
    [assets/bot-icon-1024.png](assets/bot-icon-1024.png) itself on startup;
    vector source: [assets/bot-icon.svg](assets/bot-icon.svg).)
-5. In the shell you'll run the bot from, set both values (session-only;
-   alternatively put them in a gitignored `.env` — see
-   [Development](#development)):
+5. Create a file named `.env` in the repo root (it's gitignored — never
+   commit it) containing exactly two lines:
 
-   ```powershell
-   $env:DISCORD_TOKEN = '<paste-token-here>'
-   $env:DISCORD_APP_ID = '<paste-application-id-here>'
+   ```
+   DISCORD_TOKEN=<paste-token-here>
+   DISCORD_APP_ID=<paste-application-id-here>
    ```
 
-   Treat the token like a password: never commit it, never paste it into
-   chat or anywhere else.
+   Every `npm run` script and the bot itself read this file automatically.
+   Treat the token like a password: never paste it into chat or anywhere
+   else.
 6. Verify the setup:
 
    ```bash
@@ -75,9 +74,9 @@ permissions the bot needs:
 
 ## Configuring the bot
 
-One-time after inviting the bot, register its slash commands (in the same
-shell where the env vars are set; setting `TTDB_GUILD_ID` to your server's
-ID makes the commands appear instantly instead of within an hour):
+One-time after inviting the bot, register its slash commands (add
+`TTDB_GUILD_ID=<your-server-id>` to your `.env` first so the commands
+appear instantly in your server instead of globally within an hour):
 
 ```bash
 npm run register-commands
@@ -260,10 +259,10 @@ npm test
 
 ### Environment variables
 
-Configuration is read from environment variables. Set them in your shell, or
-put `KEY=value` lines in a **gitignored** `.env` file and run commands via
-`node --env-file=.env ...` (supported natively by Node, no dotenv needed).
-Never commit secrets.
+Configuration lives in a **gitignored** `.env` file in the repo root —
+plain `KEY=value` lines, loaded natively by Node (no dotenv dependency).
+Every `npm run` script and the startup task read it automatically. Never
+commit it.
 
 | Name | Required | Meaning |
 |---|---|---|
@@ -273,8 +272,8 @@ Never commit secrets.
 | `TTDB_TEST_MODE` | no | Set to `1` to enable short "TESTING ONLY" poll durations and minute-level sweeps. Never use on a real server. |
 | `TTDB_GUILD_ID` | no | If set, slash commands are registered guild-scoped (instant) instead of globally (~1 h to propagate). |
 
-Note: `$env:` variables only live as long as that PowerShell window. If you
-open a new window, set them again — or keep them in the gitignored `.env`.
+Changes to `.env` take effect the next time a script runs or the bot
+starts (restart the bot to pick them up).
 
 ## Troubleshooting
 

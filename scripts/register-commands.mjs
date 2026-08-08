@@ -13,7 +13,7 @@ const { say, finish, scrub, setSecret } = makeScriptLog('register-commands');
 const HINTS = [
   [
     'missing required environment',
-    'Set DISCORD_TOKEN and DISCORD_APP_ID first -- see the "Development" section of README.md.',
+    'Add DISCORD_TOKEN and DISCORD_APP_ID to the .env file -- see the "Development" section of README.md.',
   ],
   [
     'invalid token',
