@@ -268,6 +268,50 @@ test('voice channels can be nominated once the voice category exists, unless alr
   assert.equal(poll.subject, 'chan-voice');
 });
 
+test('poll creation is refused at the configured open-poll cap', async (t) => {
+  const db = tempDb(t);
+  setConfig(db, 'g1', { ...FULL_CONFIG, max_open_polls: 2 });
+  for (const name of ['Grace', 'Alan']) {
+    createPoll(db, {
+      guildId: 'g1',
+      type: 'invite',
+      subject: name,
+      initiatorId: 'u9',
+      channelId: 'chan-poll',
+      closesAt: 9_000_000_000,
+    });
+  }
+  const interaction = fakeInteraction({
+    guild: fakeGuild(),
+    values: { name: 'Ada', duration: ['259200'] },
+  });
+  await handleCreateModal({ db }, interaction, ['invite']);
+  assert.equal(listOpen(db, 'g1').length, 2, 'no poll created past the cap');
+  assert.match(interaction.replies[0].content, /at most 2/);
+});
+
+test('the open-poll cap defaults to 10', async (t) => {
+  const db = tempDb(t);
+  setConfig(db, 'g1', FULL_CONFIG);
+  for (let i = 0; i < 10; i += 1) {
+    createPoll(db, {
+      guildId: 'g1',
+      type: 'invite',
+      subject: `Person ${i}`,
+      initiatorId: 'u9',
+      channelId: 'chan-poll',
+      closesAt: 9_000_000_000,
+    });
+  }
+  const interaction = fakeInteraction({
+    guild: fakeGuild(),
+    values: { name: 'Ada', duration: ['259200'] },
+  });
+  await handleCreateModal({ db }, interaction, ['invite']);
+  assert.equal(listOpen(db, 'g1').length, 10);
+  assert.match(interaction.replies[0].content, /at most 10/);
+});
+
 test('invalid duration values are refused', async (t) => {
   const db = tempDb(t);
   setConfig(db, 'g1', FULL_CONFIG);

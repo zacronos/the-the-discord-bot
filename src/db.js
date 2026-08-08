@@ -22,6 +22,7 @@ CREATE TABLE IF NOT EXISTS guild_config (
   permanent_category_voice_id TEXT,
   invite_channel_id TEXT,         -- optional (Q3); default landing = system channel
   poll_starter_role_id TEXT,      -- optional (Q6); null = anyone may start polls
+  max_open_polls INTEGER,         -- optional; null = default cap of 10
   updated_at INTEGER NOT NULL
 );
 CREATE TABLE IF NOT EXISTS polls (
@@ -69,6 +70,7 @@ export function openDb(path) {
     'ALTER TABLE guild_config ADD COLUMN threshold_value_permchan REAL',
     'ALTER TABLE guild_config ADD COLUMN permanent_category_text_id TEXT',
     'ALTER TABLE guild_config ADD COLUMN permanent_category_voice_id TEXT',
+    'ALTER TABLE guild_config ADD COLUMN max_open_polls INTEGER',
   ]) {
     try {
       db.exec(alter);

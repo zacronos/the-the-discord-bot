@@ -126,6 +126,19 @@ export const configCommandDefinition = new SlashCommandBuilder()
   )
   .addSubcommand((sub) =>
     sub
+      .setName('max-open-polls')
+      .setDescription('How many polls may be open at the same time (default: 10)')
+      .addIntegerOption((opt) =>
+        opt
+          .setName('value')
+          .setDescription('The cap on simultaneous open polls')
+          .setMinValue(1)
+          .setMaxValue(100)
+          .setRequired(true)
+      )
+  )
+  .addSubcommand((sub) =>
+    sub
       .setName('poll-starter-role')
       .setDescription('Restrict who may start polls (optional)')
       .addRoleOption((opt) =>
@@ -177,6 +190,9 @@ export function missingRequiredSettings(cfg) {
   return missing;
 }
 
+export const DEFAULT_MAX_OPEN_POLLS = 10;
+export const maxOpenPolls = (cfg) => cfg?.max_open_polls ?? DEFAULT_MAX_OPEN_POLLS;
+
 export function formatThreshold({ type, value }) {
   return type === 'percent' ? `${value}% of current members` : `${value} points total`;
 }
@@ -213,6 +229,7 @@ function renderShow(cfg = {}) {
     `• Poll-starter role: ${set(cfg.poll_starter_role_id, (id) => `<@&${id}>`)}${
       cfg.poll_starter_role_id ? '' : ' — anyone can start polls'
     }`,
+    `• Max open polls: ${cfg.max_open_polls ?? `${DEFAULT_MAX_OPEN_POLLS} (default)`}`,
   ];
   const missing = missingRequiredSettings(cfg);
   if (missing.length > 0) {
@@ -305,6 +322,16 @@ export async function handleConfigCommand(ctx, interaction) {
       setConfig(db, guildId, { invite_channel_id: channel.id });
       lines.push(`Invite links from passed polls will land in <#${channel.id}>.`);
       lines.push(...permissionWarnings(interaction, channel, INVITE_PERMS, 'in that channel'));
+      saved = true;
+      break;
+    }
+    case 'max-open-polls': {
+      const value = interaction.options.getInteger('value', true);
+      if (!Number.isInteger(value) || value < 1) {
+        return replyEphemeral(interaction, '⚠️ The cap must be a whole number of at least 1.');
+      }
+      setConfig(db, guildId, { max_open_polls: value });
+      lines.push(`At most ${value} poll(s) can be open at the same time now.`);
       saved = true;
       break;
     }

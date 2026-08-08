@@ -90,7 +90,8 @@ settings and refuse to start until all four required ones have values.
 |---|---|---|
 | `poll-channel channel:<#channel>` | yes | The text channel polls are posted in |
 | `hard-no-weight weight:<-2 \| -3 \| -5 \| -10 \| veto>` | yes | How strongly a "Hard no" vote counts against a poll's total; `veto` means a single hard no fails the poll |
-| `pass-threshold value:<number> unit:<votes \| percent> poll-type:<invite \| channel-permanence \| both>` | yes | The vote total needed to pass: a literal total, or a percent of the server's current (non-bot) members. `poll-type` (default: both) gives each poll type its own threshold |
+| `pass-threshold value:<number> unit:<votes \| percent> poll-type:<invite \| channel-permanence \| both>` | yes | The points total needed to pass: a literal points total, or a percent of the server's current (non-bot) members. `poll-type` (default: both) gives each poll type its own threshold |
+| `max-open-polls value:<1–100>` | no | How many polls may be open at the same time; default 10 |
 | `permanent-category category:<category> kind:<text \| voice>` | yes (text) | The category a channel moves into when a permanence poll passes. `kind` (default: text) sets separate categories for text and voice channels; until a voice category is set, voice channels can't be nominated |
 | `invite-channel channel:<#channel>` | no | Where invite links from passed invite polls land; unset = the server's system channel |
 | `poll-starter-role role:<@role>` | no | Restrict poll *starting* to one role; unset = anyone. Voting is always open to everyone |
@@ -149,7 +150,8 @@ to the next hour on the clock.
 
 Guard rails: if a `poll-starter-role` is configured, only members with that
 role can start polls; duplicate polls (same type and subject as one still
-open) are refused; and channels already in the permanent category can't be
+open) are refused; at most `max-open-polls` polls (default 10) can be open
+at the same time; and channels already in the permanent category can't be
 nominated again.
 
 ## Voting and privacy
@@ -207,13 +209,14 @@ hour), or immediately once everyone has voted. Votes are then counted:
 | Hard no | the configured `hard-no-weight`: −2 / −3 / −5 / −10, **or `veto`** |
 
 If `hard-no-weight` is `veto`, a single Hard no fails the poll outright.
-Otherwise the poll **passes when the total reaches the configured
-threshold** (settable separately per poll type) — either a literal vote
-total, or a percent of the server's current non-bot members (evaluated at
-close time; votes from members who left the server are dropped). Reaching the threshold exactly counts as
-passing. Example with `pass-threshold 50 percent` in a 10-person server:
-6 Yes + 1 No + 1 Hard no (−3) = total 0 → fails; 8 Yes + 2 Abstain =
-total 8 → passes (target 5).
+Otherwise the poll **passes when the point total at poll closing is at
+least the configured threshold** (settable separately per poll type) —
+either a literal points total, or a percent of the server's current
+non-bot members (evaluated at close time; votes from members who left the
+server are dropped). Reaching the threshold exactly counts as passing.
+Example with `pass-threshold 50 percent` in a 10-person server:
+6 Yes + 1 No + 1 Hard no (−3) = point total 0 → fails; 8 Yes + 2 Abstain =
+point total 8 → passes (target 5).
 
 When a poll closes, its message is deleted from the poll channel and all
 individual votes are erased — only the outcome is kept. The initiator gets

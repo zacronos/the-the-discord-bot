@@ -285,6 +285,8 @@ Native Windows Task Scheduler logon-trigger task: no third-party binary (NSSM) o
 
 ## Post-plan change log
 
+- [X] 2026-08-08 (owner request): "point total / points total" terminology swept through the README; the init message's point-totaling paragraph became a bullet list; new `/ttdb-config max-open-polls` setting (integer 1–100, default 10 when unset) caps simultaneous open polls per server, enforced at poll creation. Slash commands re-registered for the new subcommand.
+
 - [X] 2026-08-08 (owner request): the init message gained a second paragraph explaining how votes are totaled as points (reflecting the configured hard-no weight) and a closing bullet list of the current per-poll-type pass thresholds. Both are config-derived and covered by the content hash, so changing `hard-no-weight` or `pass-threshold` edits the message in place through the existing self-update mechanism.
 
 - [X] 2026-08-08 (owner request): per-poll-type pass thresholds (`pass-threshold` gains optional `poll-type: invite | channel-permanence | both`, default both) and per-channel-kind permanent categories (`permanent-category` gains optional `kind: text | voice`, default text; permanence polls now accept voice channels, autodetecting the category by channel kind). Six new nullable columns with guarded migrations; resolution falls back to the legacy shared columns so existing configs stay valid; voice has no fallback — nominations are refused until a voice category is set. Slash commands re-registered.

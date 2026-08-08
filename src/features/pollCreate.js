@@ -7,6 +7,7 @@ import { createPoll, listOpen, setMessageId } from '../store/polls.js';
 import {
   channelKind,
   formatThreshold,
+  maxOpenPolls,
   missingRequiredSettings,
   permanentCategoryFor,
   thresholdFor,
@@ -137,6 +138,15 @@ export async function handleCreateModal(ctx, interaction, [typePart]) {
     return replyEphemeral(interaction, '⚠️ Please pick a poll duration from the list.');
   }
 
+  const openPolls = listOpen(ctx.db, interaction.guildId);
+  const cap = maxOpenPolls(cfg);
+  if (openPolls.length >= cap) {
+    return replyEphemeral(
+      interaction,
+      `⚠️ There are already ${openPolls.length} open poll(s) — this server allows at most ${cap} at a time. Please wait for one to close.`
+    );
+  }
+
   let subject;
   if (type === 'invite') {
     subject = collapseWhitespace(values.name);
@@ -166,7 +176,7 @@ export async function handleCreateModal(ctx, interaction, [typePart]) {
   }
 
   const key = duplicateKey(type, subject);
-  const duplicate = listOpen(ctx.db, interaction.guildId).find(
+  const duplicate = openPolls.find(
     (poll) => poll.type === type && duplicateKey(poll.type, poll.subject) === key
   );
   if (duplicate) {

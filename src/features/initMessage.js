@@ -36,9 +36,9 @@ const BUTTONS = [
 function pointsParagraph(cfg) {
   const hardNo =
     cfg?.hard_no_weight == null || cfg.hard_no_weight === 'veto'
-      ? 'a single **Hard no** vetoes the poll — it fails outright'
-      : `a **Hard no** counts as **${cfg.hard_no_weight}** toward the point total`;
-  return `When a poll closes, votes are totaled as points: **Yes!** = +1, **No** = −1, **Abstain** = 0, and ${hardNo}.`;
+      ? '• **Hard no** — a single one vetoes the poll (it fails outright)'
+      : `• **Hard no** = **${cfg.hard_no_weight}**`;
+  return ['When a poll closes, votes are totaled as points:', '• **Yes!** = +1', '• **No** = −1', '• **Abstain** = 0', hardNo].join('\n');
 }
 
 // The currently-configured pass thresholds, one bullet per poll type.

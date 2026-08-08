@@ -17,6 +17,7 @@ const FIELDS = new Set([
   'permanent_category_voice_id',
   'invite_channel_id',
   'poll_starter_role_id',
+  'max_open_polls',
 ]);
 
 export function getConfig(db, guildId) {

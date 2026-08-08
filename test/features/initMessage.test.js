@@ -71,14 +71,17 @@ function fakeGuild({ id = 'g1', channels = [] } = {}) {
   };
 }
 
-test('the init message explains point totaling and its text tracks the hard-no setting', () => {
+test('the init message explains point totaling as a bullet list that tracks the hard-no setting', () => {
   const veto = buildInitMessage(FULL_CONFIG); // hard_no_weight: 'veto'
-  assert.match(veto.embeds[0].data.description, /votes are totaled as points/);
-  assert.match(veto.embeds[0].data.description, /\*\*Yes!\*\* = \+1, \*\*No\*\* = −1, \*\*Abstain\*\* = 0/);
-  assert.match(veto.embeds[0].data.description, /vetoes the poll/);
+  const description = veto.embeds[0].data.description;
+  assert.match(description, /votes are totaled as points:/);
+  assert.match(description, /• \*\*Yes!\*\* = \+1/);
+  assert.match(description, /• \*\*No\*\* = −1/);
+  assert.match(description, /• \*\*Abstain\*\* = 0/);
+  assert.match(description, /• \*\*Hard no\*\* — a single one vetoes the poll/);
 
   const minus3 = buildInitMessage({ ...FULL_CONFIG, hard_no_weight: '-3' });
-  assert.match(minus3.embeds[0].data.description, /counts as \*\*-3\*\* toward the point total/);
+  assert.match(minus3.embeds[0].data.description, /• \*\*Hard no\*\* = \*\*-3\*\*/);
   assert.notEqual(
     veto.embeds[0].data.footer.text,
     minus3.embeds[0].data.footer.text,

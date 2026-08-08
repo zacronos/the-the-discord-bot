@@ -28,6 +28,7 @@ function fakeInteraction({ sub, opts = {}, guildId = 'g1', missingPerms = [] }) 
       getChannel: (name) => wrapChannel(opts[name] ?? null),
       getString: (name) => opts[name] ?? null,
       getNumber: (name) => opts[name] ?? null,
+      getInteger: (name) => opts[name] ?? null,
       getRole: (name) => opts[name] ?? null,
     },
     reply: async (payload) => {
@@ -51,6 +52,7 @@ test('command definition: name, admin-only default permission, guild-only, all s
     [
       'hard-no-weight',
       'invite-channel',
+      'max-open-polls',
       'pass-threshold',
       'permanent-category',
       'poll-channel',
@@ -58,6 +60,22 @@ test('command definition: name, admin-only default permission, guild-only, all s
       'show',
     ].sort()
   );
+});
+
+test('max-open-polls stores the cap; show reports the default until then', async (t) => {
+  const db = tempDb(t);
+  const fresh = fakeInteraction({ sub: 'show' });
+  await handleConfigCommand({ db }, fresh);
+  assert.match(lastReply(fresh).content, /Max open polls: 10 \(default\)/);
+
+  const set = fakeInteraction({ sub: 'max-open-polls', opts: { value: 3 } });
+  await handleConfigCommand({ db }, set);
+  assert.equal(getConfig(db, 'g1').max_open_polls, 3);
+  assert.match(lastReply(set).content, /At most 3 poll/);
+
+  const after = fakeInteraction({ sub: 'show' });
+  await handleConfigCommand({ db }, after);
+  assert.match(lastReply(after).content, /Max open polls: 3/);
 });
 
 test('missingRequiredSettings names each unset required subcommand', () => {
