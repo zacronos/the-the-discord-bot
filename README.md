@@ -219,7 +219,10 @@ Example with `pass-threshold 50 percent` in a 10-person server:
 point total 8 → passes (target 5).
 
 When a poll closes, its message is deleted from the poll channel and all
-individual votes are erased — only the outcome is kept. The initiator gets
+individual votes are erased — only the outcome is kept. Private ballot
+panels opened in the last few minutes are dismissed too (Discord only lets
+the bot remove an ephemeral message within ~15 minutes of it opening;
+older ballots simply report the poll as closed if pressed). The initiator gets
 the result by DM:
 
 - **Passed** — plus the follow-up action's result (e.g. an invite link).

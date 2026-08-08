@@ -27,6 +27,45 @@ export function choiceLabel(type, choice) {
   }
 }
 
+// Live ballot interactions per poll, so the close pipeline can dismiss
+// them. Ephemeral messages are only deletable through their interaction
+// token (valid ~15 minutes), so this is best-effort: ballots older than the
+// window simply report "closed" if pressed. In-memory by design — after a
+// restart the old tokens would be expired anyway.
+const liveBallots = new Map(); // pollId -> Map<userId, { interaction, at }>
+const TOKEN_WINDOW_MS = 14 * 60_000;
+
+function trackBallot(poll, interaction, at) {
+  let perUser = liveBallots.get(poll.id);
+  if (!perUser) {
+    perUser = new Map();
+    liveBallots.set(poll.id, perUser);
+  }
+  perUser.set(interaction.user.id, { interaction, at });
+}
+
+// Deletes every still-deletable ballot for the poll and forgets the rest.
+export async function deleteBallots(pollId, now = Date.now()) {
+  const perUser = liveBallots.get(pollId);
+  liveBallots.delete(pollId);
+  if (!perUser) return 0;
+  let deleted = 0;
+  for (const { interaction, at } of perUser.values()) {
+    if (now - at > TOKEN_WINDOW_MS) continue;
+    try {
+      await interaction.deleteReply();
+      deleted += 1;
+    } catch {
+      // token expired early or message already dismissed
+    }
+  }
+  return deleted;
+}
+
+export function clearBallotTracking() {
+  liveBallots.clear();
+}
+
 const CHOICE_STYLES = {
   yes: ButtonStyle.Success,
   no: ButtonStyle.Secondary,
@@ -57,7 +96,8 @@ export async function handleVoteButton(ctx, interaction, [pollIdRaw]) {
     return interaction.reply({ content: 'This poll has closed.', flags: MessageFlags.Ephemeral });
   }
   const current = getVote(ctx.db, poll.id, interaction.user.id);
-  return interaction.reply({ ...buildBallot(poll, current), flags: MessageFlags.Ephemeral });
+  await interaction.reply({ ...buildBallot(poll, current), flags: MessageFlags.Ephemeral });
+  trackBallot(poll, interaction, ctx.now?.() ?? Date.now());
 }
 
 export async function handleCastButton(ctx, interaction, [pollIdRaw, choice]) {
@@ -67,6 +107,7 @@ export async function handleCastButton(ctx, interaction, [pollIdRaw, choice]) {
   }
   castVote(ctx.db, poll.id, interaction.user.id, choice);
   await interaction.update(buildBallot(poll, choice));
+  trackBallot(poll, interaction, ctx.now?.() ?? Date.now()); // fresher token than the original reply
 
   // Public counts + everyone-has-voted early close (Q2: non-bot members).
   await refreshPollCounts(ctx, interaction.guild, poll).catch(() => {});

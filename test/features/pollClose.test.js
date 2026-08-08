@@ -10,6 +10,7 @@ import {
 import { setConfig } from '../../src/store/guildConfig.js';
 import { claimForClose, createPoll, getPoll, setMessageId } from '../../src/store/polls.js';
 import { castVote, countVoters } from '../../src/store/votes.js';
+import { clearBallotTracking, handleVoteButton } from '../../src/features/ballot.js';
 import { clearEligibilityCache } from '../../src/features/eligibility.js';
 import { tempDb } from '../store/helpers.js';
 
@@ -231,6 +232,26 @@ test('abortPoll cancels an open poll and tells the initiator why', async (t) => 
   const initiator = dms.find((d) => d.userId === 'u1');
   assert.match(initiator.content, /cancelled/);
   assert.match(initiator.content, /its message was deleted/);
+});
+
+test('closing a poll dismisses tracked open ballots', async (t) => {
+  const { db, ctx, poll } = makeWorld(t);
+  clearBallotTracking();
+  castVote(db, poll.id, 'u2', 'no');
+  const ballot = {
+    guildId: 'g1',
+    user: { id: 'u1' },
+    replies: [],
+    deletedReplies: 0,
+    reply: async (p) => ballot.replies.push(p),
+    deleteReply: async () => {
+      ballot.deletedReplies += 1;
+    },
+  };
+  await handleVoteButton({ db, now: ctx.now }, ballot, [String(poll.id)]);
+
+  await closePollPipeline(ctx, poll);
+  assert.equal(ballot.deletedReplies, 1, 'the open ballot was deleted at close');
 });
 
 test('leaving a guild aborts all of its open polls (7.3)', async (t) => {

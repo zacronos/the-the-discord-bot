@@ -12,6 +12,7 @@ import {
   listVoters,
   listVotersByChoice,
 } from '../store/votes.js';
+import { deleteBallots } from './ballot.js';
 import { thresholdFor } from './configCommands.js';
 import { eligibleVoterCount } from './eligibility.js';
 
@@ -137,6 +138,7 @@ export async function closePollPipeline(ctx, poll) {
   } catch {
     // message or channel already gone
   }
+  await deleteBallots(poll.id, now); // best-effort: only recent tokens are still deletable
 
   closePoll(ctx.db, poll.id, result.outcome, result.vetoCount, now);
   deleteVotes(ctx.db, poll.id); // Q5: no per-user data survives the close
@@ -149,6 +151,7 @@ export async function abortPoll(ctx, poll, reason) {
   const now = ctx.now?.() ?? Date.now();
   closePoll(ctx.db, poll.id, 'aborted', null, now);
   deleteVotes(ctx.db, poll.id);
+  await deleteBallots(poll.id, now);
   await sendDm(
     ctx,
     poll.initiator_id,

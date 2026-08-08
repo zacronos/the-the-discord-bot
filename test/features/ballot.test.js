@@ -1,7 +1,13 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { MessageFlags } from 'discord.js';
-import { choiceLabel, handleCastButton, handleVoteButton } from '../../src/features/ballot.js';
+import {
+  choiceLabel,
+  clearBallotTracking,
+  deleteBallots,
+  handleCastButton,
+  handleVoteButton,
+} from '../../src/features/ballot.js';
 import { createPoll, setMessageId } from '../../src/store/polls.js';
 import { castVote, getVote } from '../../src/store/votes.js';
 import { closePoll } from '../../src/store/polls.js';
@@ -38,17 +44,20 @@ function fakeGuild(memberCount = 3) {
 }
 
 function fakeInteraction({ guild, userId = 'u1' } = {}) {
-  const replies = [];
-  const updates = [];
-  return {
+  const interaction = {
     guildId: 'g1',
     guild,
     user: { id: userId },
-    replies,
-    updates,
-    reply: async (p) => replies.push(p),
-    update: async (p) => updates.push(p),
+    replies: [],
+    updates: [],
+    deletedReplies: 0,
+    reply: async (p) => interaction.replies.push(p),
+    update: async (p) => interaction.updates.push(p),
+    deleteReply: async () => {
+      interaction.deletedReplies += 1;
+    },
   };
+  return interaction;
 }
 
 test('choiceLabel wording matches the spec per poll type', () => {
@@ -135,6 +144,46 @@ test('when the last eligible voter casts, the early-close hook fires', async (t)
 
   await handleCastButton(ctx, fakeInteraction({ guild }), [String(poll.id), 'abstain']);
   assert.deepEqual(closed, [poll.id]);
+});
+
+test('open ballots are deleted when asked, then tracking is cleared', async (t) => {
+  clearBallotTracking();
+  clearEligibilityCache();
+  clearRefreshThrottle();
+  const db = tempDb(t);
+  const poll = makePoll(db);
+  const ballot = fakeInteraction({ guild: fakeGuild() });
+  await handleVoteButton({ db, now: () => 1_000 }, ballot, [String(poll.id)]);
+
+  assert.equal(await deleteBallots(poll.id, 61_000), 1);
+  assert.equal(ballot.deletedReplies, 1);
+  assert.equal(await deleteBallots(poll.id, 61_000), 0, 'second pass finds nothing');
+});
+
+test('expired ballot tokens are skipped; casting refreshes the tracked interaction', async (t) => {
+  clearBallotTracking();
+  clearEligibilityCache();
+  clearRefreshThrottle();
+  const db = tempDb(t);
+  const poll = makePoll(db);
+  const guild = fakeGuild(3);
+
+  const opened = fakeInteraction({ guild });
+  await handleVoteButton({ db, now: () => 0 }, opened, [String(poll.id)]);
+  const casted = fakeInteraction({ guild });
+  await handleCastButton({ db, now: () => 10 * 60_000 }, casted, [String(poll.id), 'yes']);
+
+  // 16 minutes in: the original interaction would be expired, but the cast
+  // refreshed the tracked token 10 minutes in.
+  assert.equal(await deleteBallots(poll.id, 16 * 60_000), 1);
+  assert.equal(casted.deletedReplies, 1);
+  assert.equal(opened.deletedReplies, 0);
+
+  const stale = fakeInteraction({ guild });
+  const second = makePoll(db, { subject: 'Grace' });
+  await handleVoteButton({ db, now: () => 0 }, stale, [String(second.id)]);
+  assert.equal(await deleteBallots(second.id, 20 * 60_000), 0, 'fully expired ballots are left alone');
+  assert.equal(stale.deletedReplies, 0);
 });
 
 test('casting on a closed poll is refused and records nothing', async (t) => {
