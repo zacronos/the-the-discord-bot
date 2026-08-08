@@ -6,13 +6,9 @@ import { getConfig } from '../store/guildConfig.js';
 import { createPoll, listOpen, setMessageId } from '../store/polls.js';
 import {
   channelKind,
-  formatThreshold,
-  hardNoDescription,
-  isVetoConfig,
   maxOpenPolls,
   missingRequiredSettings,
   permanentCategoryFor,
-  thresholdFor,
 } from './configCommands.js';
 import { durationSelectOptions, isAllowedDurationSeconds } from './durations.js';
 import { eligibleVoterCount } from './eligibility.js';
@@ -25,14 +21,12 @@ const POLL_TYPES = { invite: 'invite', permchan: 'permanent_channel' };
 const replyEphemeral = (interaction, content) =>
   interaction.reply({ content, flags: MessageFlags.Ephemeral });
 
-export function buildCreationExplanation(cfg, pollType) {
-  const hardNo = isVetoConfig(cfg)
-    ? `a Hard no ${hardNoDescription(cfg)}`
-    : `a Hard no counts as ${hardNoDescription(cfg)}`;
-  const threshold = thresholdFor(cfg, pollType);
+// Kept intentionally short: the scoring rules and thresholds live on the
+// init message members press to get here.
+export function buildCreationExplanation() {
   return [
     'This starts an **anonymous** poll in the poll channel, open to everyone on the server. Nobody can see how anyone voted.',
-    `The poll closes after the duration you pick, rounded up to the next hour on the clock — or as soon as everyone on the server has voted. At close: Yes = +1, No = −1, Abstain = 0, and ${hardNo}. The poll passes when the point total at poll closing is at least **${threshold ? formatThreshold(threshold) : 'the configured threshold'}**. The result goes privately to you by DM.`,
+    'The poll closes after the duration you pick, rounded up to the next hour on the clock — or as soon as everyone on the server has voted.',
     '⚠️ A shorter poll may reach a result quicker, but leaves less time for everyone to see it and vote — avoid shorter durations unless there is a real reason for urgency.',
   ].join('\n\n');
 }
@@ -56,7 +50,7 @@ export function buildCreateModal(typePart, cfg, testMode = false) {
     custom_id: buildId('create', typePart),
     title: typePart === 'invite' ? 'Start a vote: invite someone' : 'Start a vote: channel permanence',
     components: [
-      { type: 10, content: buildCreationExplanation(cfg, POLL_TYPES[typePart]) },
+      { type: 10, content: buildCreationExplanation() },
       subjectLabel,
       {
         type: 18,

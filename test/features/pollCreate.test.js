@@ -83,9 +83,7 @@ test('buildCreateModal (invite) carries explanation, name input, and duration se
   assert.equal(modal.custom_id, 'ttdb:create:invite');
   const textDisplay = modal.components.find((c) => c.type === 10);
   assert.match(textDisplay.content, /anonymous/i);
-  assert.match(textDisplay.content, /veto/);
-  assert.match(textDisplay.content, /point total at poll closing is at least/);
-  assert.match(textDisplay.content, /3 points total/);
+  assert.match(textDisplay.content, /closes after the duration you pick/);
   assert.match(textDisplay.content, /avoid shorter durations/i);
   const name = modal.components.find((c) => c.component?.custom_id === 'name');
   assert.equal(name.component.type, 4);
@@ -103,24 +101,12 @@ test('buildCreateModal (permchan) offers text and voice channels', () => {
   assert.deepEqual(channel.component.channel_types, [0, 2]);
 });
 
-test('the creation explanation uses the threshold for that poll type', () => {
-  const cfg = { ...FULL_CONFIG, threshold_type_permchan: 'count', threshold_value_permchan: 7 };
-  const inviteText = buildCreateModal('invite', cfg, false).components.find((c) => c.type === 10).content;
-  const permText = buildCreateModal('permchan', cfg, false).components.find((c) => c.type === 10).content;
-  assert.match(inviteText, /3 points total/, 'invite falls back to the legacy threshold');
-  assert.match(permText, /7 points total/, 'permanence uses its own threshold');
-});
-
-test('the creation explanation describes Hard no exactly like the init message', () => {
-  const vetoText = buildCreateModal('invite', FULL_CONFIG, false).components.find((c) => c.type === 10).content;
-  assert.match(
-    vetoText,
-    /a Hard no \*\*vetoes the poll\*\* \(it fails outright if there are any vetoes\)/
-  );
-
-  const numericText = buildCreateModal('invite', { ...FULL_CONFIG, hard_no_weight: '-2' }, false)
-    .components.find((c) => c.type === 10).content;
-  assert.match(numericText, /a Hard no counts as \*\*−2\*\*/);
+test('the creation explanation stops after the closing rules — scoring lives in the init message', () => {
+  const text = buildCreateModal('invite', FULL_CONFIG, false).components.find((c) => c.type === 10).content;
+  assert.match(text, /everyone on the server has voted\.\n\n⚠️/, 'closing rules flow straight into the urgency warning');
+  assert.doesNotMatch(text, /At close:/);
+  assert.doesNotMatch(text, /point total/);
+  assert.doesNotMatch(text, /Hard no/);
 });
 
 test('extractModalValues reads text values and select value arrays from nested shapes', () => {
