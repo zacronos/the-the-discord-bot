@@ -15,7 +15,7 @@ import {
 } from '../store/votes.js';
 import { deleteBallots } from './ballot.js';
 import { thresholdFor } from './configCommands.js';
-import { eligibleVoterCount } from './eligibility.js';
+import { eligibleVoterCount, fetchGuildMembers } from './eligibility.js';
 
 const describePoll = (poll) => {
   if (poll.type === 'invite') return `inviting **${poll.subject}**`;
@@ -98,20 +98,27 @@ export async function closePollPipeline(ctx, poll) {
   const cfg = getConfig(ctx.db, guild.id) ?? {};
 
   // Q2: only current members count — drop votes from anyone who left.
-  const members = await guild.members.fetch().catch(() => null);
+  // Shares the cached fetch with the eligibility count below (op8 budget).
+  const members = await fetchGuildMembers(guild, { now }).catch(() => null);
   if (members) {
     for (const userId of listVoters(ctx.db, poll.id)) {
       if (!members.has(userId)) deleteVote(ctx.db, poll.id, userId);
     }
   }
 
-  const eligible = await eligibleVoterCount(guild, { now }).catch(() => null);
+  let eligibilityError = null;
+  const eligible = await eligibleVoterCount(guild, { now }).catch((err) => {
+    eligibilityError = err;
+    return null;
+  });
   const threshold = thresholdFor(cfg, poll.type) ?? { type: 'count', value: Number.POSITIVE_INFINITY };
   if (eligible == null && threshold.type === 'percent') {
     // A transient member-count failure must not decide a percent-threshold
     // poll either way — put it back and let the next sweep retry.
     releaseClose(ctx.db, poll.id);
-    console.warn(`[ttdb] poll ${poll.id}: member count unavailable; deferring close to the next sweep`);
+    console.warn(
+      `[ttdb] poll ${poll.id}: member count unavailable (${eligibilityError?.message ?? 'unknown'}); deferring close to the next sweep`
+    );
     return false;
   }
   const votersCount = countVoters(ctx.db, poll.id);

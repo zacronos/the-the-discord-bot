@@ -44,11 +44,13 @@ function makeWorld(
     messages: { fetch: async () => message },
     send: async (payload) => channelSends.push(payload),
   };
+  let memberFetches = 0;
   const guild = {
     id: 'g1',
     channels: { fetch: async () => channel },
     members: {
       fetch: async () => {
+        memberFetches += 1;
         if (membersFetchFails) throw new Error('GuildMembersTimeout');
         return new Map([
           ...memberIds.map((id) => [id, { user: { bot: false } }]),
@@ -69,6 +71,11 @@ function makeWorld(
     },
   };
   const ctx = { db, client, sleep: async () => {}, now: () => 10_000, actions: {} };
+  const world = {
+    get memberFetches() {
+      return memberFetches;
+    },
+  };
   const poll = createPoll(db, {
     guildId: 'g1',
     type: 'invite',
@@ -78,7 +85,7 @@ function makeWorld(
     closesAt: 5_000,
   });
   setMessageId(db, poll.id, 'msg-1');
-  return { db, ctx, poll, guild, message, dms, channelSends };
+  return { db, ctx, poll, guild, message, dms, channelSends, world };
 }
 
 test('a poll already being closed is not closed twice', async (t) => {
@@ -228,6 +235,15 @@ test('votes from members who left are dropped before tallying (Q2)', async (t) =
 
   await closePollPipeline(ctx, poll);
   assert.equal(getPoll(db, poll.id).status, 'failed', 'total is 1, target 2');
+});
+
+test('a close performs at most one gateway member fetch (op8 rate budget)', async (t) => {
+  const { db, ctx, poll, world } = makeWorld(t);
+  castVote(db, poll.id, 'u1', 'yes');
+  castVote(db, poll.id, 'u2', 'yes');
+
+  await closePollPipeline(ctx, poll);
+  assert.equal(world.memberFetches, 1, 'pruning and counting share one member fetch');
 });
 
 test('a veto from a member who left the server does not veto the poll', async (t) => {
