@@ -49,6 +49,12 @@ try {
 
   say(`OK: registered ${result.length} command(s) -- scope: ${scopeNote}`);
   for (const command of result) say(`  - /${command.name}`);
+  if (env.guildId) {
+    // A guild-scoped registration supersedes any earlier global one; clear
+    // the global set so members don't see duplicate command entries.
+    await rest.put(Routes.applicationCommands(env.appId), { body: [] });
+    say('Cleared the global command set (guild-scoped registration wins).');
+  }
   await closeHttpAgent();
   finish(0);
 } catch (err) {
