@@ -283,6 +283,10 @@ Native Windows Task Scheduler logon-trigger task: no third-party binary (NSSM) o
 - Rotate the bot token immediately if it's ever pasted anywhere public; re-run the Phase 1 env-var step and update `.env` after rotating.
 - Occasionally back up `data/the-the.sqlite3` (stop the bot first, copy the file).
 
+## Post-plan change log
+
+- [X] 2026-08-08 (owner request): the init message self-updates. On startup/config-change, a fully-configured guild's found init message is compared against the current code's version via a content hash in the footer (`ttdb-init-v1 <hash>`); mismatches are edited in place, absence still triggers a fresh post. Legacy plain-marker messages are recognized by prefix and upgraded.
+
 ## References
 
 - Discord getting-started (starting point per spec): https://docs.discord.com/developers/quick-start/getting-started — note it demos the HTTP-endpoint style; D1 explains why this bot uses the gateway instead

@@ -111,6 +111,10 @@ poll type. That message is the entry point for everything members do.
 - The bot recognizes its own message (via an embed marker), so restarting
   the bot or re-running config never produces duplicates — even if the
   bot's database is lost, it re-adopts the existing message.
+- On every startup (and config change) the bot compares the message against
+  what the current code would send; if an update changed the wording or
+  buttons, the existing message is **edited in place** — same message, no
+  repost.
 - If the message gets deleted, the bot reposts it on its next startup or
   the next configuration change.
 - If you change `poll-channel`, the old message is removed and a fresh one

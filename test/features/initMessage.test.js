@@ -12,14 +12,20 @@ const FULL_CONFIG = {
   permanent_category_id: 'cat-1',
 };
 
+const currentFooter = () => buildInitMessage().embeds[0].data.footer.text;
+
 function fakeMessage({ id, authorId = 'bot-user', footer = INIT_MARKER } = {}) {
   return {
     id,
     author: { id: authorId },
     embeds: [{ footer: { text: footer } }],
     deleted: false,
+    edits: [],
     async delete() {
       this.deleted = true;
+    },
+    async edit(payload) {
+      this.edits.push(payload);
     },
   };
 }
@@ -65,11 +71,16 @@ function fakeGuild({ id = 'g1', channels = [] } = {}) {
   };
 }
 
-test('buildInitMessage carries the marker footer and both start buttons', () => {
+test('buildInitMessage carries the marker footer with a content hash, and both start buttons', () => {
   const payload = buildInitMessage();
-  assert.equal(payload.embeds[0].data.footer.text, INIT_MARKER);
+  assert.match(
+    payload.embeds[0].data.footer.text,
+    new RegExp(`^${INIT_MARKER} [0-9a-f]{8}$`),
+    'footer = marker + short hash of the current content'
+  );
   const ids = payload.components[0].components.map((b) => b.data.custom_id);
   assert.deepEqual(ids, ['ttdb:start:invite', 'ttdb:start:permchan']);
+  assert.equal(currentFooter(), currentFooter(), 'hash is deterministic');
 });
 
 test('does nothing while required config is incomplete', async (t) => {
@@ -82,9 +93,9 @@ test('does nothing while required config is incomplete', async (t) => {
   assert.equal(channel.sent.length, 0);
 });
 
-test('keeps the stored message when it still exists', async (t) => {
+test('keeps the stored message untouched when its content is current', async (t) => {
   const db = tempDb(t);
-  const existing = fakeMessage({ id: 'msg-1' });
+  const existing = fakeMessage({ id: 'msg-1', footer: currentFooter() });
   const channel = fakeChannel({ id: 'chan-1', messages: [existing] });
   const guild = fakeGuild({ channels: [channel] });
   setConfig(db, 'g1', { ...FULL_CONFIG, init_message_id: 'msg-1', init_channel_id: 'chan-1' });
@@ -92,6 +103,22 @@ test('keeps the stored message when it still exists', async (t) => {
   const result = await ensureInitMessage({ db }, guild);
   assert.equal(result, existing);
   assert.equal(channel.sent.length, 0);
+  assert.equal(existing.edits.length, 0, 'no pointless edit when content already matches');
+});
+
+test('edits the stored message in place when its content is outdated', async (t) => {
+  const db = tempDb(t);
+  const stale = fakeMessage({ id: 'msg-1', footer: `${INIT_MARKER} 00000000` });
+  const channel = fakeChannel({ id: 'chan-1', messages: [stale] });
+  const guild = fakeGuild({ channels: [channel] });
+  setConfig(db, 'g1', { ...FULL_CONFIG, init_message_id: 'msg-1', init_channel_id: 'chan-1' });
+
+  const result = await ensureInitMessage({ db }, guild);
+  assert.equal(result, stale);
+  assert.equal(channel.sent.length, 0, 'edited, not reposted');
+  assert.equal(stale.edits.length, 1);
+  assert.equal(stale.edits[0].embeds[0].data.footer.text, currentFooter());
+  assert.equal(getConfig(db, 'g1').init_message_id, 'msg-1', 'same message id kept');
 });
 
 test('adopts an orphaned marker message when the stored id is stale', async (t) => {
@@ -106,6 +133,8 @@ test('adopts an orphaned marker message when the stored id is stale', async (t) 
   assert.equal(result, orphan);
   assert.equal(channel.sent.length, 0);
   assert.equal(getConfig(db, 'g1').init_message_id, 'msg-b');
+  assert.equal(orphan.edits.length, 1, 'legacy-footer orphan is brought up to date');
+  assert.equal(orphan.edits[0].embeds[0].data.footer.text, currentFooter());
 });
 
 test('posts a fresh init message and stores its ids when none exists', async (t) => {
@@ -116,7 +145,7 @@ test('posts a fresh init message and stores its ids when none exists', async (t)
 
   const result = await ensureInitMessage({ db }, guild);
   assert.equal(channel.sent.length, 1);
-  assert.equal(result.payload.embeds[0].data.footer.text, INIT_MARKER);
+  assert.equal(result.payload.embeds[0].data.footer.text, currentFooter());
   const cfg = getConfig(db, 'g1');
   assert.equal(cfg.init_message_id, result.id);
   assert.equal(cfg.init_channel_id, 'chan-1');
