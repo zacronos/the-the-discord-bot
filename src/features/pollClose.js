@@ -4,9 +4,10 @@ import { ActionRowBuilder, ButtonBuilder, ButtonStyle, MessageFlags } from 'disc
 import { buildId } from '../discord/customId.js';
 import { tallyPoll } from '../polls/tally.js';
 import { getConfig } from '../store/guildConfig.js';
-import { claimForClose, closePoll, getPoll, listOpen } from '../store/polls.js';
+import { claimForClose, closePoll, getPoll, listOpen, releaseClose } from '../store/polls.js';
 import {
   countByChoice,
+  countVoters,
   deleteVote,
   deleteVotes,
   listVoters,
@@ -101,15 +102,26 @@ export async function closePollPipeline(ctx, poll) {
     }
   }
 
-  const eligible = await eligibleVoterCount(guild, { now }).catch(() => 0);
+  const eligible = await eligibleVoterCount(guild, { now }).catch(() => null);
+  const threshold = thresholdFor(cfg, poll.type) ?? { type: 'count', value: Number.POSITIVE_INFINITY };
+  if (eligible == null && threshold.type === 'percent') {
+    // A transient member-count failure must not decide a percent-threshold
+    // poll either way — put it back and let the next sweep retry.
+    releaseClose(ctx.db, poll.id);
+    console.warn(`[ttdb] poll ${poll.id}: member count unavailable; deferring close to the next sweep`);
+    return false;
+  }
+  const votersCount = countVoters(ctx.db, poll.id);
   const counts = countByChoice(ctx.db, poll.id);
   const result = tallyPoll({
     counts,
     hardNoWeight: cfg.hard_no_weight,
-    // Per-poll-type threshold; an unresolvable one fails safe (unpassable).
-    threshold: thresholdFor(cfg, poll.type) ?? { type: 'count', value: Number.POSITIVE_INFINITY },
-    eligibleCount: eligible,
+    threshold,
+    eligibleCount: eligible ?? 0,
   });
+  console.log(
+    `[ttdb] poll ${poll.id} (${poll.type}) closed: ${result.outcome} — ${votersCount} voter(s), total ${result.total}, target ${result.target}, eligible ${eligible ?? 'unknown'}`
+  );
   const vetoerIds = result.outcome === 'vetoed' ? listVotersByChoice(ctx.db, poll.id, 'hard_no') : [];
 
   let actionNote = null;

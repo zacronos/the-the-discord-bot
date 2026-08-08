@@ -10,7 +10,16 @@ export function tallyPoll({ counts, hardNoWeight, threshold, eligibleCount }) {
   }
   const weight = hardNoWeight === 'veto' ? 0 : Number(hardNoWeight);
   const total = (counts.yes ?? 0) - (counts.no ?? 0) + vetoCount * weight;
+  // Percent targets need a real member count; without one, fail safe rather
+  // than letting the target collapse to zero.
   const target =
-    threshold.type === 'percent' ? (threshold.value / 100) * eligibleCount : threshold.value;
-  return { outcome: total >= target ? 'passed' : 'failed', vetoCount, total, target };
+    threshold.type === 'percent'
+      ? Number.isFinite(eligibleCount) && eligibleCount > 0
+        ? (threshold.value / 100) * eligibleCount
+        : Number.POSITIVE_INFINITY
+      : threshold.value;
+  // A poll nobody voted on never passes, no matter how low the target is.
+  const totalVotes = (counts.yes ?? 0) + (counts.no ?? 0) + (counts.abstain ?? 0) + vetoCount;
+  const passed = totalVotes > 0 && total >= target;
+  return { outcome: passed ? 'passed' : 'failed', vetoCount, total, target };
 }

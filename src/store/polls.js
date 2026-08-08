@@ -48,6 +48,15 @@ export function claimForClose(db, id) {
   return changes > 0;
 }
 
+// Reopens a claimed-but-not-finalized poll (e.g. a close deferred because
+// the member count was unavailable) so a later sweep can retry it.
+export function releaseClose(db, id) {
+  const { changes } = db
+    .prepare("UPDATE polls SET status = 'open' WHERE id = ? AND status = 'closing'")
+    .run(id);
+  return changes > 0;
+}
+
 // Moves a poll to a final status. Returns false if the poll was already
 // closed (so double-closing is a harmless no-op). The 'closing' state is the
 // close pipeline's in-flight claim (Phase 4).

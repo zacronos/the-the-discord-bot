@@ -8,6 +8,7 @@ import {
   listDue,
   listOpen,
   listOpenAll,
+  releaseClose,
   setMessageId,
 } from '../../src/store/polls.js';
 import { tempDb } from './helpers.js';
@@ -99,6 +100,17 @@ test('claimForClose claims an open poll exactly once', (t) => {
   assert.equal(getPoll(db, poll.id).status, 'closing');
   assert.equal(claimForClose(db, poll.id), false, 'second concurrent claim loses');
   assert.equal(closePoll(db, poll.id, 'passed'), true, 'claimed poll can still be finalized');
+});
+
+test('releaseClose reopens a claimed poll for a later retry', (t) => {
+  const db = tempDb(t);
+  const poll = createPoll(db, base);
+  claimForClose(db, poll.id);
+  assert.equal(releaseClose(db, poll.id), true);
+  assert.equal(getPoll(db, poll.id).status, 'open');
+  assert.equal(claimForClose(db, poll.id), true, 'claimable again');
+  closePoll(db, poll.id, 'failed');
+  assert.equal(releaseClose(db, poll.id), false, 'finalized polls are not reopened');
 });
 
 test('listOpenAll returns open polls across every guild', (t) => {

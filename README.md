@@ -216,6 +216,9 @@ least the configured threshold** (settable separately per poll type) —
 either a literal points total, or a percent of the server's current
 non-bot members (evaluated at close time; votes from members who left the
 server are dropped). Reaching the threshold exactly counts as passing.
+**A poll that received no votes at all never passes.** If the member count
+can't be determined when a percent-threshold poll comes due, the close is
+postponed to the next sweep rather than decided on bad data.
 Example with `pass-threshold 50 percent` in a 10-person server:
 6 Yes + 1 No + 1 Hard no (−3) = point total 0 → fails; 8 Yes + 2 Abstain =
 point total 8 → passes (target 5).

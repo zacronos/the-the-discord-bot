@@ -22,7 +22,10 @@ const CONFIG = {
   permanent_category_id: 'cat-1',
 };
 
-function makeWorld(t, { memberIds = ['u1', 'u2', 'u3'], dmFailFor = [], config = CONFIG } = {}) {
+function makeWorld(
+  t,
+  { memberIds = ['u1', 'u2', 'u3'], dmFailFor = [], config = CONFIG, membersFetchFails = false } = {}
+) {
   clearEligibilityCache();
   const db = tempDb(t);
   setConfig(db, 'g1', config);
@@ -39,7 +42,10 @@ function makeWorld(t, { memberIds = ['u1', 'u2', 'u3'], dmFailFor = [], config =
     id: 'g1',
     channels: { fetch: async () => channel },
     members: {
-      fetch: async () => new Map(memberIds.map((id) => [id, { user: { bot: false } }])),
+      fetch: async () => {
+        if (membersFetchFails) throw new Error('GuildMembersTimeout');
+        return new Map(memberIds.map((id) => [id, { user: { bot: false } }]));
+      },
     },
   };
   const client = {
@@ -142,6 +148,34 @@ test('a failing action still reports success with a manual-follow-up note', asyn
   assert.match(initiator.content, /passed/);
   assert.match(initiator.content, /Missing Permissions/);
   assert.match(initiator.content, /admin/i);
+});
+
+test('regression: a zero-vote poll with a percent threshold fails even if everyone left', async (t) => {
+  // Mirrors the live bug: percent 30 threshold, empty member list, no votes
+  // — the old code computed target 0 and declared the poll passed.
+  const { db, ctx, poll, dms } = makeWorld(t, {
+    memberIds: [],
+    config: { ...CONFIG, threshold_type: 'percent', threshold_value: 30 },
+  });
+
+  await closePollPipeline(ctx, poll);
+  assert.equal(getPoll(db, poll.id).status, 'failed');
+  const initiator = dms.find((d) => d.userId === 'u1');
+  assert.match(initiator.content, /did not pass/);
+});
+
+test('a percent-threshold close is deferred when the member count is unavailable', async (t) => {
+  const { db, ctx, poll, dms, message } = makeWorld(t, {
+    membersFetchFails: true,
+    config: { ...CONFIG, threshold_type: 'percent', threshold_value: 30 },
+  });
+  castVote(db, poll.id, 'u1', 'yes');
+
+  assert.equal(await closePollPipeline(ctx, poll), false);
+  assert.equal(getPoll(db, poll.id).status, 'open', 'poll stays open for the next sweep');
+  assert.equal(dms.length, 0, 'no result was announced');
+  assert.equal(message.deleted, false);
+  assert.equal(countVoters(db, poll.id), 1, 'votes retained for the retry');
 });
 
 test('per-poll-type thresholds are honored at close', async (t) => {

@@ -62,6 +62,30 @@ test('percent threshold scales with the member count, boundary inclusive', () =>
   assert.equal(tallyPoll({ ...base, eligibleCount: 10 }).target, 5);
 });
 
+test('a poll with no votes at all never passes, no matter how low the target', () => {
+  for (const threshold of [
+    { type: 'count', value: 0 },
+    { type: 'count', value: 1 },
+    { type: 'percent', value: 0 },
+    { type: 'percent', value: 30 },
+  ]) {
+    const result = tallyPoll({ counts: counts(), hardNoWeight: 'veto', threshold, eligibleCount: 4 });
+    assert.equal(result.outcome, 'failed', JSON.stringify(threshold));
+  }
+});
+
+test('percent thresholds fail safe when the eligible count is unknown or zero', () => {
+  for (const eligibleCount of [0, -1, null, undefined, Number.NaN]) {
+    const result = tallyPoll({
+      counts: counts({ yes: 5 }),
+      hardNoWeight: '-2',
+      threshold: { type: 'percent', value: 30 },
+      eligibleCount,
+    });
+    assert.equal(result.outcome, 'failed', `eligibleCount=${eligibleCount}`);
+  }
+});
+
 test('a zero threshold passes an all-abstain poll but a positive one fails an empty poll', () => {
   const allAbstain = tallyPoll({
     counts: counts({ abstain: 4 }),
