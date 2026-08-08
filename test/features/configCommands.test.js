@@ -215,6 +215,24 @@ test('pass-threshold with no poll-type sets both poll types', async (t) => {
   assert.equal(cfg.threshold_value_invite, 50);
   assert.equal(cfg.threshold_type_permchan, 'percent');
   assert.equal(cfg.threshold_value_permchan, 50);
+  assert.equal(cfg.threshold_type_delchan, 'percent', 'the default scope covers all three poll types');
+  assert.equal(cfg.threshold_value_delchan, 50);
+});
+
+test('pass-threshold scoped to channel-deletion touches only that type', async (t) => {
+  const db = tempDb(t);
+  await handleConfigCommand(
+    { db },
+    fakeInteraction({
+      sub: 'pass-threshold',
+      opts: { value: 4, unit: 'votes', 'poll-type': 'channel-deletion' },
+    })
+  );
+  const cfg = getConfig(db, 'g1');
+  assert.equal(cfg.threshold_type_delchan, 'count');
+  assert.equal(cfg.threshold_value_delchan, 4);
+  assert.equal(cfg.threshold_type_invite, null);
+  assert.equal(cfg.threshold_type_permchan, null);
 });
 
 test('pass-threshold scoped to one poll type leaves the other alone', async (t) => {

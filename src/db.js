@@ -17,6 +17,8 @@ CREATE TABLE IF NOT EXISTS guild_config (
   threshold_value_invite REAL,
   threshold_type_permchan TEXT,
   threshold_value_permchan REAL,
+  threshold_type_delchan TEXT,
+  threshold_value_delchan REAL,
   permanent_category_id TEXT,     -- legacy; text channels fall back to it
   permanent_category_text_id TEXT,
   permanent_category_voice_id TEXT,
@@ -42,6 +44,12 @@ CREATE TABLE IF NOT EXISTS polls (
 CREATE TABLE IF NOT EXISTS app_state (
   key TEXT PRIMARY KEY,
   value TEXT
+);
+CREATE TABLE IF NOT EXISTS scheduled_deletions (
+  channel_id TEXT PRIMARY KEY,
+  guild_id TEXT NOT NULL,
+  poll_id INTEGER,
+  delete_at INTEGER NOT NULL   -- executed by the sweep at/after this time
 );
 CREATE TABLE IF NOT EXISTS votes (
   poll_id INTEGER NOT NULL,
@@ -71,6 +79,8 @@ export function openDb(path) {
     'ALTER TABLE guild_config ADD COLUMN permanent_category_text_id TEXT',
     'ALTER TABLE guild_config ADD COLUMN permanent_category_voice_id TEXT',
     'ALTER TABLE guild_config ADD COLUMN max_open_polls INTEGER',
+    'ALTER TABLE guild_config ADD COLUMN threshold_type_delchan TEXT',
+    'ALTER TABLE guild_config ADD COLUMN threshold_value_delchan REAL',
   ]) {
     try {
       db.exec(alter);

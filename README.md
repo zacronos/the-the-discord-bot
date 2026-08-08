@@ -90,7 +90,7 @@ settings and refuse to start until all four required ones have values.
 |---|---|---|
 | `poll-channel channel:<#channel>` | yes | The text channel polls are posted in |
 | `hard-no-weight weight:<-2 \| -3 \| -5 \| -10 \| veto>` | yes | How strongly a "Hard no" vote counts against a poll's total; `veto` means a single hard no fails the poll |
-| `pass-threshold value:<number> unit:<points \| percent> poll-type:<invite \| channel-permanence \| both>` | yes | The points total needed to pass: a literal points total, or a percent of the server's current (non-bot) members. `poll-type` (default: both) gives each poll type its own threshold |
+| `pass-threshold value:<number> unit:<points \| percent> poll-type:<invite \| channel-permanence \| channel-deletion \| all>` | yes | The points total needed to pass: a literal points total, or a percent of the server's current (non-bot) members. `poll-type` (default: all) gives each poll type its own threshold. Channel-deletion polls stay disabled until a threshold resolves for them |
 | `max-open-polls value:<1–100>` | no | How many polls may be open at the same time; default 10 |
 | `permanent-category category:<category> kind:<text \| voice>` | yes (text) | The category a channel moves into when a permanence poll passes. `kind` (default: text) sets separate categories for text and voice channels; until a voice category is set, voice channels can't be nominated |
 | `invite-channel channel:<#channel>` | no | Where invite links from passed invite polls land; unset = the server's system channel |
@@ -197,6 +197,18 @@ syncs its permission overwrites** with it. Voice channels can only be
 nominated once a voice category is configured. If the move fails (category
 deleted, or the bot lacks Manage Channels / Manage Roles), the DM still
 reports the pass with a note asking an admin to finish the move manually.
+
+### Start a vote on deleting a channel
+
+Asks which channel should be deleted — only channels **inside the
+configured permanent categories** can be nominated. This poll type has its
+own `pass-threshold` (set it with `poll-type:channel-deletion`, or cover
+everything with `poll-type:all`); until one is configured, its button
+explains what an admin needs to run. If the poll passes, the channel is
+**scheduled for deletion 24 hours later, rounded up to the next hour on
+the clock**, and the bot posts a warning in that channel with the exact
+day and time. The deletion happens at that hour — or at the next bot
+startup, if it was offline when the time arrived.
 
 ## How results are decided
 

@@ -12,6 +12,8 @@ const FIELDS = new Set([
   'threshold_value_invite',
   'threshold_type_permchan',
   'threshold_value_permchan',
+  'threshold_type_delchan',
+  'threshold_value_delchan',
   'permanent_category_id',
   'permanent_category_text_id',
   'permanent_category_voice_id',

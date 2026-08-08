@@ -17,8 +17,11 @@ import { deleteBallots } from './ballot.js';
 import { thresholdFor } from './configCommands.js';
 import { eligibleVoterCount } from './eligibility.js';
 
-const describePoll = (poll) =>
-  poll.type === 'invite' ? `inviting **${poll.subject}**` : `making <#${poll.subject}> permanent`;
+const describePoll = (poll) => {
+  if (poll.type === 'invite') return `inviting **${poll.subject}**`;
+  if (poll.type === 'delete_channel') return `deleting <#${poll.subject}>`;
+  return `making <#${poll.subject}> permanent`;
+};
 
 // The initiator learns pass/fail (and the veto count when vetoed) — never
 // vote totals.

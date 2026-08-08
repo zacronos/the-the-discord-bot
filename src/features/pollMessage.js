@@ -9,9 +9,9 @@ import { countVoters } from '../store/votes.js';
 import { eligibleVoterCount } from './eligibility.js';
 
 export function pollTitle(poll) {
-  return poll.type === 'invite'
-    ? `Should we invite ${poll.subject} to the server?`
-    : `Should <#${poll.subject}> be made permanent?`;
+  if (poll.type === 'invite') return `Should we invite ${poll.subject} to the server?`;
+  if (poll.type === 'delete_channel') return `Should <#${poll.subject}> be deleted?`;
+  return `Should <#${poll.subject}> be made permanent?`;
 }
 
 export function renderPollMessage(poll, { responded = 0, eligible = null } = {}) {

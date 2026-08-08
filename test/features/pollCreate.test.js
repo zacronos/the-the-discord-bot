@@ -249,6 +249,55 @@ test('permchan modal submit stores the channel id and refuses channels already i
   assert.equal(poll.subject, 'chan-target');
 });
 
+test('channel-deletion polls need their own threshold before the button works', async (t) => {
+  const db = tempDb(t);
+  // per-type thresholds only — nothing for channel-deletion, no legacy fallback
+  setConfig(db, 'g1', {
+    poll_channel_id: 'chan-poll',
+    hard_no_weight: 'veto',
+    threshold_type_invite: 'count',
+    threshold_value_invite: 1,
+    threshold_type_permchan: 'count',
+    threshold_value_permchan: 1,
+    permanent_category_id: 'cat-1',
+  });
+  const refused = fakeInteraction({ guild: fakeGuild() });
+  await handleStartButton({ db }, refused, ['delchan']);
+  assert.equal(refused.shown.length, 0);
+  assert.match(refused.replies[0].content, /poll-type:channel-deletion/);
+
+  setConfig(db, 'g1', { threshold_type_delchan: 'count', threshold_value_delchan: 2 });
+  const allowed = fakeInteraction({ guild: fakeGuild() });
+  await handleStartButton({ db }, allowed, ['delchan']);
+  assert.equal(allowed.shown.length, 1);
+  assert.equal(allowed.shown[0].custom_id, 'ttdb:create:delchan');
+  const channel = allowed.shown[0].components.find((c) => c.component?.custom_id === 'channel');
+  assert.deepEqual(channel.component.channel_types, [0, 2]);
+});
+
+test('only channels inside the permanent categories can be nominated for deletion', async (t) => {
+  clearEligibilityCache();
+  const db = tempDb(t);
+  setConfig(db, 'g1', FULL_CONFIG); // legacy threshold covers delchan via fallback
+
+  const outside = fakeInteraction({
+    guild: fakeGuild(),
+    values: { channel: ['chan-target'], duration: ['604800'] }, // parentId null
+  });
+  await handleCreateModal({ db }, outside, ['delchan']);
+  assert.equal(listOpen(db, 'g1').length, 0);
+  assert.match(outside.replies[0].content, /permanent categories/i);
+
+  const inside = fakeInteraction({
+    guild: fakeGuild(),
+    values: { channel: ['chan-owned'], duration: ['604800'] }, // parentId cat-1
+  });
+  await handleCreateModal({ db, now: () => 0 }, inside, ['delchan']);
+  const [poll] = listOpen(db, 'g1');
+  assert.equal(poll.type, 'delete_channel');
+  assert.equal(poll.subject, 'chan-owned');
+});
+
 test('voice channels are refused until a voice permanent category is configured', async (t) => {
   const db = tempDb(t);
   setConfig(db, 'g1', FULL_CONFIG); // text/legacy category only

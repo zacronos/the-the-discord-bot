@@ -3,6 +3,7 @@
 // open ones. Startup runs an immediate catch-up sweep for downtime.
 import { HOUR_MS, MINUTE_MS, msUntilNextBoundary } from '../util/time.js';
 import { listDue, listOpenAll } from '../store/polls.js';
+import { listDueDeletions, removeScheduledDeletion } from '../store/scheduledDeletions.js';
 import { abortPoll } from './pollClose.js';
 import { refreshPollCounts } from './pollMessage.js';
 
@@ -28,6 +29,22 @@ export async function runSweep(ctx, now = Date.now()) {
       await refreshPollCounts(ctx, guild, poll, { force: true, now });
     } catch (err) {
       console.error(`[ttdb] sweep refresh for poll ${poll.id} failed:`, err);
+    }
+  }
+  // Scheduled channel deletions (from passed deletion polls). A failed
+  // delete keeps its row and is retried every sweep; a vanished channel
+  // just clears the row.
+  for (const row of listDueDeletions(ctx.db, now)) {
+    try {
+      const guild = await ctx.client.guilds.fetch(row.guild_id).catch(() => null);
+      const channel = await guild?.channels.fetch(row.channel_id).catch(() => null);
+      if (channel) {
+        await channel.delete(`The The Bot: deletion poll ${row.poll_id ?? '?'} passed`);
+        console.log(`[ttdb] deleted channel ${row.channel_id} (scheduled by poll ${row.poll_id ?? '?'})`);
+      }
+      removeScheduledDeletion(ctx.db, row.channel_id);
+    } catch (err) {
+      console.error(`[ttdb] scheduled deletion of channel ${row.channel_id} failed:`, err);
     }
   }
 }

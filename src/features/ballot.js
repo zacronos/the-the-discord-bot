@@ -11,6 +11,7 @@ import { EPHEMERAL_TTL_MS, scheduleDelayed } from '../util/time.js';
 const NO_LABELS = {
   invite: "No, I'd rather not invite them, but I won't object if enough people want to",
   permanent_channel: "No, I'd rather not, but I won't object if enough people want to",
+  delete_channel: "No, I'd rather not, but I won't object if enough people want to",
 };
 
 export function choiceLabel(type, choice) {

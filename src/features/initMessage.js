@@ -33,6 +33,11 @@ const BUTTONS = [
     label: 'Start a vote on making a channel permanent',
     style: ButtonStyle.Secondary,
   },
+  {
+    customId: buildId('start', 'delchan'),
+    label: 'Start a vote on deleting a channel',
+    style: ButtonStyle.Danger,
+  },
 ];
 
 // How votes become points. Config-derived: changing hard-no-weight changes
@@ -55,6 +60,7 @@ function thresholdList(cfg) {
     'The point total at poll closing must be at least:',
     line('Invite polls', thresholdFor(cfg, 'invite')),
     line('Channel-permanence polls', thresholdFor(cfg, 'permanent_channel')),
+    line('Channel-deletion polls', thresholdFor(cfg, 'delete_channel')),
   ].join('\n');
 }
 

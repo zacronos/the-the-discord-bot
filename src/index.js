@@ -7,6 +7,7 @@ import { createRouter } from './discord/interactionRouter.js';
 import { handleCastButton, handleVoteButton } from './features/ballot.js';
 import { handleConfigCommand } from './features/configCommands.js';
 import { ensureInitMessage } from './features/initMessage.js';
+import { deleteChannelAction } from './features/actions/deleteChannel.js';
 import { inviteAction } from './features/actions/invite.js';
 import { permanentChannelAction } from './features/actions/permanentChannel.js';
 import { auditGuildPermissions } from './features/audit.js';
@@ -23,7 +24,11 @@ const ctx = {
   env,
   db,
   client,
-  actions: { invite: inviteAction, permanent_channel: permanentChannelAction },
+  actions: {
+    invite: inviteAction,
+    permanent_channel: permanentChannelAction,
+    delete_channel: deleteChannelAction,
+  },
 };
 ctx.ensureInitMessage = (guild) => ensureInitMessage(ctx, guild);
 ctx.closeDuePoll = (poll) => closePollPipeline(ctx, poll);

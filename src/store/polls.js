@@ -1,7 +1,7 @@
 // Poll rows. All functions take the open db handle as their first argument.
 // Rows are returned as stored (snake_case columns).
 
-const TYPES = new Set(['invite', 'permanent_channel']);
+const TYPES = new Set(['invite', 'permanent_channel', 'delete_channel']);
 const FINAL_STATUSES = new Set(['passed', 'failed', 'vetoed', 'aborted']);
 
 export function createPoll(

@@ -87,7 +87,8 @@ export const configCommandDefinition = new SlashCommandBuilder()
           .addChoices(
             { name: 'invite polls', value: 'invite' },
             { name: 'channel-permanence polls', value: 'channel-permanence' },
-            { name: 'both', value: 'both' }
+            { name: 'channel-deletion polls', value: 'channel-deletion' },
+            { name: 'all poll types', value: 'both' }
           )
       )
   )
@@ -157,7 +158,9 @@ export function thresholdFor(cfg, pollType) {
   const [type, value] =
     pollType === 'invite'
       ? [cfg?.threshold_type_invite, cfg?.threshold_value_invite]
-      : [cfg?.threshold_type_permchan, cfg?.threshold_value_permchan];
+      : pollType === 'delete_channel'
+        ? [cfg?.threshold_type_delchan, cfg?.threshold_value_delchan]
+        : [cfg?.threshold_type_permchan, cfg?.threshold_value_permchan];
   if (type != null && value != null) return { type, value };
   if (cfg?.threshold_type != null && cfg?.threshold_value != null) {
     return { type: cfg.threshold_type, value: cfg.threshold_value };
@@ -230,6 +233,11 @@ function renderShow(cfg = {}) {
     `• Hard-no weight (required): ${set(cfg.hard_no_weight, (w) => (w === 'veto' ? 'veto — a single hard no fails the poll' : w))}`,
     `• Pass threshold — invite polls (required): ${inviteThreshold ? formatThreshold(inviteThreshold) : '*not set*'}`,
     `• Pass threshold — channel-permanence polls (required): ${permThreshold ? formatThreshold(permThreshold) : '*not set*'}`,
+    `• Pass threshold — channel-deletion polls: ${
+      thresholdFor(cfg, 'delete_channel')
+        ? formatThreshold(thresholdFor(cfg, 'delete_channel'))
+        : "*not set* — channel-deletion polls can't start"
+    }`,
     `• Permanent category — text channels (required): ${textCategory ? `<#${textCategory}>` : '*not set*'}`,
     `• Permanent category — voice channels: ${voiceCategory ? `<#${voiceCategory}>` : "*not set* — voice channels can't be nominated"}`,
     `• Invite landing channel: ${set(cfg.invite_channel_id, (id) => `<#${id}>`)}${
@@ -300,9 +308,19 @@ export async function handleConfigCommand(ctx, interaction) {
         patch.threshold_type_permchan = type;
         patch.threshold_value_permchan = value;
       }
+      if (scope === 'channel-deletion' || scope === 'both') {
+        patch.threshold_type_delchan = type;
+        patch.threshold_value_delchan = value;
+      }
       setConfig(db, guildId, patch);
       const scopeText =
-        scope === 'both' ? 'Both poll types' : scope === 'invite' ? 'Invite polls' : 'Channel-permanence polls';
+        scope === 'both'
+          ? 'All poll types'
+          : scope === 'invite'
+            ? 'Invite polls'
+            : scope === 'channel-deletion'
+              ? 'Channel-deletion polls'
+              : 'Channel-permanence polls';
       lines.push(
         `${scopeText} now pass when the point total at poll closing is at least ${formatThreshold({ type, value })}.`
       );

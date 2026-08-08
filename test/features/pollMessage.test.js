@@ -25,6 +25,7 @@ test('pollTitle phrases each poll type around its subject', () => {
     pollTitle({ type: 'permanent_channel', subject: 'chan-9' }),
     'Should <#chan-9> be made permanent?'
   );
+  assert.equal(pollTitle({ type: 'delete_channel', subject: 'chan-9' }), 'Should <#chan-9> be deleted?');
 });
 
 test('renderPollMessage pings @everyone intentionally and nothing else', () => {

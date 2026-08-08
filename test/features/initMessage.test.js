@@ -113,6 +113,7 @@ test('the init message ends with the per-poll-type thresholds and tracks changes
   assert.match(description, /__Current pass thresholds__\nThe point total at poll closing must be at least:/);
   assert.match(description, /• Invite polls: _3 points total_/);
   assert.match(description, /• Channel-permanence polls: _3 points total_/);
+  assert.match(description, /• Channel-deletion polls: _3 points total_/, 'legacy threshold covers the third type');
 
   const changed = buildInitMessage({
     ...FULL_CONFIG,
@@ -135,7 +136,7 @@ test('buildInitMessage carries the marker footer with a content hash, and both s
     'footer = marker + short hash of the current content'
   );
   const ids = payload.components[0].components.map((b) => b.data.custom_id);
-  assert.deepEqual(ids, ['ttdb:start:invite', 'ttdb:start:permchan']);
+  assert.deepEqual(ids, ['ttdb:start:invite', 'ttdb:start:permchan', 'ttdb:start:delchan']);
   assert.equal(currentFooter(), currentFooter(), 'hash is deterministic');
 });
 

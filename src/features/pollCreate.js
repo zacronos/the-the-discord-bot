@@ -9,6 +9,7 @@ import {
   maxOpenPolls,
   missingRequiredSettings,
   permanentCategoryFor,
+  thresholdFor,
 } from './configCommands.js';
 import { durationSelectOptions, isAllowedDurationSeconds } from './durations.js';
 import { eligibleVoterCount } from './eligibility.js';
@@ -16,7 +17,7 @@ import { pollTitle, renderPollMessage } from './pollMessage.js';
 import { EPHEMERAL_TTL_MS, roundUpToNextHour, scheduleDelayed } from '../util/time.js';
 
 // customId segment → poll type stored in the database
-const POLL_TYPES = { invite: 'invite', permchan: 'permanent_channel' };
+const POLL_TYPES = { invite: 'invite', permchan: 'permanent_channel', delchan: 'delete_channel' };
 
 const replyEphemeral = (interaction, content) =>
   interaction.reply({ content, flags: MessageFlags.Ephemeral, allowedMentions: { parse: [] } });
@@ -43,12 +44,20 @@ export function buildCreateModal(typePart, cfg, testMode = false) {
         }
       : {
           type: 18,
-          label: 'Which channel should become permanent?',
+          label:
+            typePart === 'delchan'
+              ? 'Which channel should be deleted?'
+              : 'Which channel should become permanent?',
           component: { type: 8, custom_id: 'channel', channel_types: [0, 2], required: true },
         };
+  const TITLES = {
+    invite: 'Start a vote: invite someone',
+    permchan: 'Start a vote: channel permanence',
+    delchan: 'Start a vote: delete a channel',
+  };
   return {
     custom_id: buildId('create', typePart),
-    title: typePart === 'invite' ? 'Start a vote: invite someone' : 'Start a vote: channel permanence',
+    title: TITLES[typePart],
     components: [
       { type: 10, content: buildCreationExplanation() },
       subjectLabel,
@@ -109,6 +118,12 @@ export async function handleStartButton(ctx, interaction, [typePart]) {
       `⚠️ Only members with <@&${cfg.poll_starter_role_id}> can start polls on this server.`
     );
   }
+  if (typePart === 'delchan' && !thresholdFor(cfg, 'delete_channel')) {
+    return replyEphemeral(
+      interaction,
+      '⚠️ Channel-deletion polls aren\'t configured yet — an admin must run `/ttdb-config pass-threshold poll-type:channel-deletion` first.'
+    );
+  }
   await interaction.showModal(buildCreateModal(typePart, cfg, ctx.env?.testMode));
 }
 
@@ -148,6 +163,28 @@ export async function handleCreateModal(ctx, interaction, [typePart]) {
     if (subject.length < 1 || subject.length > 80) {
       return replyEphemeral(interaction, '⚠️ The name must be between 1 and 80 characters.');
     }
+  } else if (type === 'delete_channel') {
+    if (!thresholdFor(cfg, 'delete_channel')) {
+      return replyEphemeral(
+        interaction,
+        '⚠️ Channel-deletion polls aren\'t configured yet — an admin must run `/ttdb-config pass-threshold poll-type:channel-deletion` first.'
+      );
+    }
+    const channelId = first(values.channel);
+    const channel = await interaction.guild.channels.fetch(channelId).catch(() => null);
+    if (!channel) {
+      return replyEphemeral(interaction, '⚠️ I could not find that channel.');
+    }
+    const permanentCategories = new Set(
+      [cfg.permanent_category_id, cfg.permanent_category_text_id, cfg.permanent_category_voice_id].filter(Boolean)
+    );
+    if (!permanentCategories.has(channel.parentId)) {
+      return replyEphemeral(
+        interaction,
+        '⚠️ Only channels inside the permanent categories can be voted for deletion.'
+      );
+    }
+    subject = channelId;
   } else {
     const channelId = first(values.channel);
     const channel = await interaction.guild.channels.fetch(channelId).catch(() => null);

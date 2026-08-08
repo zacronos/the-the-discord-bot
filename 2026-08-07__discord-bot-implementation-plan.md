@@ -285,6 +285,9 @@ Native Windows Task Scheduler logon-trigger task: no third-party binary (NSSM) o
 
 ## Post-plan change log
 
+- [X] 2026-08-08 (owner request): black-box test-gap review (subagent read README + tests only) yielded 15 new tests; two real defects surfaced and were fixed — ballots now reject interactions from a different guild, and the README's worked example arithmetic was corrected.
+- [X] 2026-08-08 (owner request): third poll type — **channel deletion**. Own threshold (`pass-threshold poll-type:channel-deletion`; `all` covers every type; disabled until a threshold resolves), nominees restricted to channels inside the configured permanent categories, and on pass the channel is scheduled for deletion at now+24 h rounded up to the wall-clock hour (test mode: +5 min, minute-rounded), announced in the channel with the exact day/time via a new `scheduled_deletions` table; the hourly sweep (which also runs at startup, covering offline gaps) performs the deletion.
+
 - [X] 2026-08-08 (owner request): "point total / points total" terminology swept through the README; the init message's point-totaling paragraph became a bullet list; new `/ttdb-config max-open-polls` setting (integer 1–100, default 10 when unset) caps simultaneous open polls per server, enforced at poll creation. Slash commands re-registered for the new subcommand.
 
 - [X] 2026-08-08 (owner request): the init message gained a second paragraph explaining how votes are totaled as points (reflecting the configured hard-no weight) and a closing bullet list of the current per-poll-type pass thresholds. Both are config-derived and covered by the content hash, so changing `hard-no-weight` or `pass-threshold` edits the message in place through the existing self-update mechanism.

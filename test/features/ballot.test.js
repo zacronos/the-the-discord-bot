@@ -72,6 +72,10 @@ test('choiceLabel wording matches the spec per poll type', () => {
     choiceLabel('permanent_channel', 'no'),
     "No, I'd rather not, but I won't object if enough people want to"
   );
+  assert.equal(
+    choiceLabel('delete_channel', 'no'),
+    "No, I'd rather not, but I won't object if enough people want to"
+  );
   assert.equal(choiceLabel('invite', 'hard_no'), "Hard no, I really don't want this");
   assert.equal(choiceLabel('invite', 'abstain'), 'I abstain from voting');
 });
