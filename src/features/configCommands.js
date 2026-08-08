@@ -178,7 +178,7 @@ export function missingRequiredSettings(cfg) {
 }
 
 export function formatThreshold({ type, value }) {
-  return type === 'percent' ? `${value}% of current members` : `${value} vote total`;
+  return type === 'percent' ? `${value}% of current members` : `${value} points total`;
 }
 
 const friendly = (permName) => permName.replaceAll(/([a-z])([A-Z])/g, '$1 $2');
@@ -246,7 +246,7 @@ export async function handleConfigCommand(ctx, interaction) {
       lines.push(
         weight === 'veto'
           ? 'A single "Hard no" vote now vetoes (fails) a poll.'
-          : `A "Hard no" vote now counts as ${weight} toward the vote total.`
+          : `A "Hard no" vote now counts as ${weight} toward the point total.`
       );
       saved = true;
       break;
@@ -278,7 +278,7 @@ export async function handleConfigCommand(ctx, interaction) {
       const scopeText =
         scope === 'both' ? 'Both poll types' : scope === 'invite' ? 'Invite polls' : 'Channel-permanence polls';
       lines.push(
-        `${scopeText} now pass when the vote total at poll closing is at least ${formatThreshold({ type, value })}.`
+        `${scopeText} now pass when the point total at poll closing is at least ${formatThreshold({ type, value })}.`
       );
       saved = true;
       break;

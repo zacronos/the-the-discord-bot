@@ -84,7 +84,8 @@ test('buildCreateModal (invite) carries explanation, name input, and duration se
   const textDisplay = modal.components.find((c) => c.type === 10);
   assert.match(textDisplay.content, /anonymous/i);
   assert.match(textDisplay.content, /veto/);
-  assert.match(textDisplay.content, /3 vote total/);
+  assert.match(textDisplay.content, /point total at poll closing is at least/);
+  assert.match(textDisplay.content, /3 points total/);
   assert.match(textDisplay.content, /avoid shorter durations/i);
   const name = modal.components.find((c) => c.component?.custom_id === 'name');
   assert.equal(name.component.type, 4);
@@ -106,8 +107,8 @@ test('the creation explanation uses the threshold for that poll type', () => {
   const cfg = { ...FULL_CONFIG, threshold_type_permchan: 'count', threshold_value_permchan: 7 };
   const inviteText = buildCreateModal('invite', cfg, false).components.find((c) => c.type === 10).content;
   const permText = buildCreateModal('permchan', cfg, false).components.find((c) => c.type === 10).content;
-  assert.match(inviteText, /3 vote total/, 'invite falls back to the legacy threshold');
-  assert.match(permText, /7 vote total/, 'permanence uses its own threshold');
+  assert.match(inviteText, /3 points total/, 'invite falls back to the legacy threshold');
+  assert.match(permText, /7 points total/, 'permanence uses its own threshold');
 });
 
 test('extractModalValues reads text values and select value arrays from nested shapes', () => {
