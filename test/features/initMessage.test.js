@@ -89,6 +89,11 @@ test('the init message explains point totaling as a bullet list that tracks the 
   );
   assert.match(
     description,
+    /put a question to the whole server\.\n\nVotes are \*\*anonymous\*\*/,
+    'a blank line separates the first sentence from the anonymity sentence'
+  );
+  assert.match(
+    description,
     /the closing time are public\.\n\nResults are delivered privately to whoever started the poll, and then the poll is deleted\./,
     'the result-delivery sentence is its own paragraph and mentions deletion'
   );
