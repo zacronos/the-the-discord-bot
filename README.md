@@ -244,6 +244,14 @@ The task starts the bot at every logon and restarts it up to 3 times if it
 crashes. Stop it with `Stop-ScheduledTask -TaskName TheTheDiscordBot`;
 remove it with `scripts\uninstall-startup-task.ps1`.
 
+To restart (e.g. after pulling new code), use the restart script — it also
+cleans up any bot process the task lost track of, which otherwise blocks
+the next start by keeping `data\bot.log` locked:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts\restart-bot.ps1
+```
+
 Caveat: the bot only collects votes while this machine is awake and logged
 in. Missed poll closes are caught up at the next hourly sweep or startup.
 Occasionally back up `data/the-the.sqlite3` (stop the bot first, copy the
