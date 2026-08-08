@@ -17,11 +17,14 @@ export const INIT_MARKER = 'ttdb-init-v1';
 
 const TITLE = 'Start a community poll';
 const DESCRIPTION = [
-  'Use the buttons below to put a question to the whole server. Votes are',
-  '**anonymous** — nobody can see how anyone voted. While a poll runs, only',
-  'who started it, what it asks, response counts, and the closing time are',
-  'public. Results are delivered privately to whoever started the poll.',
-].join(' ');
+  [
+    'Use the buttons below to put a question to the whole server. Votes are',
+    '**anonymous** — nobody can see how anyone voted. While a poll runs, only',
+    'who started it, what it asks, response counts, and the closing time are',
+    'public.',
+  ].join(' '),
+  'Results are delivered privately to whoever started the poll, and then the poll is deleted.',
+].join('\n\n');
 const BUTTONS = [
   { customId: buildId('start', 'invite'), label: 'Start a vote on inviting someone', style: ButtonStyle.Primary },
   {

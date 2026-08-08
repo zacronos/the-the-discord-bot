@@ -87,6 +87,11 @@ test('the init message explains point totaling as a bullet list that tracks the 
     /Votes are\n/,
     'intro renders as one flowing paragraph'
   );
+  assert.match(
+    description,
+    /the closing time are public\.\n\nResults are delivered privately to whoever started the poll, and then the poll is deleted\./,
+    'the result-delivery sentence is its own paragraph and mentions deletion'
+  );
 
   const minus3 = buildInitMessage({ ...FULL_CONFIG, hard_no_weight: '-3' });
   assert.match(minus3.embeds[0].data.description, /• Hard no {2}=> {2}\*\*−3\*\*/);
