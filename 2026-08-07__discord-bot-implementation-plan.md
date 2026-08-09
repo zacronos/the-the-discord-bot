@@ -285,6 +285,8 @@ Native Windows Task Scheduler logon-trigger task: no third-party binary (NSSM) o
 
 ## Post-plan change log
 
+- [X] 2026-08-09 (owner request): channel protection is now opt-in per guild via the new `/ttdb-scan-channels` command (Manage Server; deferred ephemeral reply). Until it stamps `guild_config.registry_activated_at`, the bot performs **no** scans or locks: the startup scan, the `ChannelCreate` listener, the daily permission sweep, and `/ttdb-set-creator` are all dormant — so a fresh server can configure `other-permanent-groups` exemptions first. The command activates, scans, locks, and reports counts (including unknown-creator channels); re-running it re-scans without re-stamping. `ChannelDelete` row hygiene stays always-on.
+
 - [X] 2026-08-09 (owner request): init-message copy — the permanent-kind deletion threshold line is labeled "Channel-deletion polls (permanent channels)" (was "…(permanent categories)"), and the "(Hard no is not available…)" exception note is removed from the points rulebook; the rule itself is unchanged and still shown per-poll in the Pass rules field. Both change the content hash, so the live message edits itself in place.
 
 - [X] 2026-08-09 (owner request): Hard no is not allowed on deletion polls for channels outside the managed permanent categories. Enforced at every layer: the ballot omits the button (kind resolved at press time via the shared `deletionKind` helper), a forged `cast … hard_no` is refused, the poll message's Pass rules say "Hard no **not available**", the init message documents the exception, and the close pipeline counts any Hard no that slipped in through a mid-poll category move as a plain No — never a veto. Permanent-category deletion polls keep Hard no and its veto power unchanged.

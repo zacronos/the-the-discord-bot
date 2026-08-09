@@ -13,7 +13,7 @@ import {
 } from 'discord.js';
 import { getKnownChannel, recordKnownChannel } from '../store/knownChannels.js';
 import { getConfig } from '../store/guildConfig.js';
-import { enforceCreatorOnlyDeletion } from './channelRegistry.js';
+import { enforceCreatorOnlyDeletion, registryActive } from './channelRegistry.js';
 import { managedPermanentCategoryIds, otherPermanentCategoryIds } from './configCommands.js';
 import { memberCanView } from './pollCreate.js';
 
@@ -38,6 +38,12 @@ const replyEphemeral = (interaction, content) =>
 
 export async function handleSetCreatorCommand(ctx, interaction) {
   const cfg = getConfig(ctx.db, interaction.guildId);
+  if (!registryActive(cfg)) {
+    return replyEphemeral(
+      interaction,
+      "⚠️ Channel protection isn't active on this server yet — an admin must run `/ttdb-scan-channels` first."
+    );
+  }
   const channel = interaction.options.getChannel('channel', true);
 
   if (new Set(otherPermanentCategoryIds(cfg)).has(channel.parentId)) {

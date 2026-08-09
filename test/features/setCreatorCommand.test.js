@@ -73,6 +73,9 @@ function fakeInteraction({
 
 const lastReply = (interaction) => interaction.replies.at(-1);
 
+// Channel protection is opt-in per guild: /ttdb-scan-channels stamps this.
+const activate = (db) => setConfig(db, 'g1', { registry_activated_at: 1 });
+
 test('command definition: visible to everyone, guild-only, channel + member options', () => {
   assert.equal(setCreatorCommandDefinition.name, 'ttdb-set-creator');
   assert.equal(
@@ -90,6 +93,7 @@ test('command definition: visible to everyone, guild-only, channel + member opti
 
 test('the recorded creator can hand the channel to a visible member', async (t) => {
   const db = tempDb(t);
+  activate(db);
   recordKnownChannel(db, { channelId: 'chan-1', guildId: 'g1', creatorId: 'u1', recordedAt: 0 });
   const channel = fakeChannel({ id: 'chan-1' });
   const interaction = fakeInteraction({ db, channel, target: { id: 'u2', user: { bot: false } } });
@@ -111,6 +115,7 @@ test('the recorded creator can hand the channel to a visible member', async (t) 
 
 test('a Manage Server member can transfer any channel, including one with an unknown creator', async (t) => {
   const db = tempDb(t);
+  activate(db);
   recordKnownChannel(db, { channelId: 'chan-1', guildId: 'g1', creatorId: null, recordedAt: 0 });
   const channel = fakeChannel({ id: 'chan-1', overwrites: [{ id: 'g1', type: 0, deny: bits([MC]) }] });
   const interaction = fakeInteraction({
@@ -129,6 +134,7 @@ test('a Manage Server member can transfer any channel, including one with an unk
 
 test('an unrecorded channel can be claimed by a Manage Server member, and gets locked', async (t) => {
   const db = tempDb(t);
+  activate(db);
   const channel = fakeChannel({ id: 'chan-new', overwrites: [] });
   const interaction = fakeInteraction({
     db,
@@ -155,6 +161,7 @@ test('an unrecorded channel can be claimed by a Manage Server member, and gets l
 
 test('a member who is neither the creator nor Manage Server is refused', async (t) => {
   const db = tempDb(t);
+  activate(db);
   recordKnownChannel(db, { channelId: 'chan-1', guildId: 'g1', creatorId: 'u1', recordedAt: 0 });
   const channel = fakeChannel({ id: 'chan-1' });
   const interaction = fakeInteraction({
@@ -173,6 +180,7 @@ test('a member who is neither the creator nor Manage Server is refused', async (
 
 test('permanent-category and protected-group channels are refused without permission edits', async (t) => {
   const db = tempDb(t);
+  activate(db);
   setConfig(db, 'g1', {
     permanent_category_text_id: 'cat-perm',
     other_permanent_category_ids: JSON.stringify(['cat-other']),
@@ -207,6 +215,7 @@ test('permanent-category and protected-group channels are refused without permis
 
 test('the target must be a visible, non-bot member — and not already the creator', async (t) => {
   const db = tempDb(t);
+  activate(db);
   recordKnownChannel(db, { channelId: 'chan-1', guildId: 'g1', creatorId: 'u1', recordedAt: 0 });
 
   const noMember = fakeInteraction({ db, channel: fakeChannel({ id: 'chan-1' }), target: null });
@@ -237,4 +246,23 @@ test('the target must be a visible, non-bot member — and not already the creat
   await handleSetCreatorCommand({ db }, already);
   assert.match(lastReply(already).content, /already/i);
   assert.equal(getKnownChannel(db, 'chan-1').creator_id, 'u1');
+});
+
+test('set-creator is refused until channel protection has been activated', async (t) => {
+  const db = tempDb(t); // no activate(db)
+  recordKnownChannel(db, { channelId: 'chan-1', guildId: 'g1', creatorId: 'u1', recordedAt: 0 });
+  const channel = fakeChannel({ id: 'chan-1' });
+  const interaction = fakeInteraction({
+    db,
+    channel,
+    target: { id: 'u2', user: { bot: false } },
+    userId: 'u-admin',
+    manageGuild: true,
+  });
+
+  await handleSetCreatorCommand({ db }, interaction);
+
+  assert.equal(getKnownChannel(db, 'chan-1').creator_id, 'u1', 'record untouched');
+  assert.equal(channel.edits.length, 0);
+  assert.match(lastReply(interaction).content, /ttdb-scan-channels/);
 });

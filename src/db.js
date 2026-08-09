@@ -28,6 +28,7 @@ CREATE TABLE IF NOT EXISTS guild_config (
   invite_channel_id TEXT,         -- optional (Q3); default landing = system channel
   poll_starter_role_id TEXT,      -- optional (Q6); null = anyone may start polls
   max_open_polls INTEGER,         -- optional; null = default cap of 10
+  registry_activated_at INTEGER,  -- set by /ttdb-scan-channels; null = no scans or locks
   updated_at INTEGER NOT NULL
 );
 CREATE TABLE IF NOT EXISTS polls (
@@ -106,6 +107,7 @@ export function openDb(path) {
     'ALTER TABLE guild_config ADD COLUMN other_permanent_category_ids TEXT',
     'ALTER TABLE guild_config ADD COLUMN threshold_type_delchan_other TEXT',
     'ALTER TABLE guild_config ADD COLUMN threshold_value_delchan_other REAL',
+    'ALTER TABLE guild_config ADD COLUMN registry_activated_at INTEGER',
     'ALTER TABLE polls ADD COLUMN subject_name TEXT',
     'ALTER TABLE polls ADD COLUMN is_private INTEGER NOT NULL DEFAULT 0',
   ]) {

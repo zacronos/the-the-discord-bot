@@ -16,8 +16,9 @@ import { auditGuildPermissions } from './features/audit.js';
 import {
   handleChannelCreate,
   handleChannelDelete,
-  scanGuildChannels,
+  runStartupScan,
 } from './features/channelRegistry.js';
+import { handleScanChannelsCommand } from './features/scanCommand.js';
 import { rehydrateEphemeralCleanups } from './features/ephemeralCleanup.js';
 import {
   closePollPipeline,
@@ -55,6 +56,7 @@ const router = createRouter(ctx);
 router.command('ttdb-config', handleConfigCommand);
 router.command('ttdb-deletions', handleDeletionsCommand);
 router.command('ttdb-set-creator', handleSetCreatorCommand);
+router.command('ttdb-scan-channels', handleScanChannelsCommand);
 router.component('start', handleStartButton);
 router.component('pubok', handleConfirmPublicButton);
 router.component('vote', handleVoteButton);
@@ -82,7 +84,7 @@ client.once(Events.ClientReady, async () => {
       console.error(`[ttdb] permission audit for guild ${guild.id}: ${err.message}`);
     }
     try {
-      const { recorded } = await scanGuildChannels(ctx, guild);
+      const { recorded } = await runStartupScan(ctx, guild);
       if (recorded > 0) {
         console.log(`[ttdb] channel scan (${guild.name ?? guild.id}): recorded ${recorded} channel(s)`);
       }

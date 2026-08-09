@@ -25,6 +25,11 @@ const OVERWRITE_MEMBER = 1;
 
 const defaultSleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
+// Channel protection is opt-in per guild: nothing is scanned or locked
+// until an admin runs /ttdb-scan-channels, so exemptions (like
+// other-permanent-groups) can be configured on a fresh server first.
+export const registryActive = (cfg) => Boolean(cfg?.registry_activated_at);
+
 // Tracked = a text or voice channel outside every "other" permanent group
 // (those categories are externally managed — hands off entirely).
 export function isTrackedChannel(cfg, channel) {
@@ -144,7 +149,7 @@ export async function handleChannelCreate(ctx, channel) {
   const guild = channel?.guild;
   if (!guild) return;
   const cfg = getConfig(ctx.db, guild.id);
-  if (!isTrackedChannel(cfg, channel)) return;
+  if (!registryActive(cfg) || !isTrackedChannel(cfg, channel)) return;
   const creatorId = await creatorFromAuditLog(ctx, guild, channel.id);
   await recordAndProtect(ctx, guild, channel, creatorId, ctx.now?.() ?? Date.now());
 }
@@ -155,24 +160,35 @@ export async function handleChannelDelete(ctx, channel) {
   removeKnownChannel(ctx.db, channel.id);
 }
 
-// Startup: record (and lock) every visible tracked channel the database
-// does not know yet, resolving creators from one audit-log backscan.
+// Records (and locks) every visible tracked channel the database does not
+// know yet, resolving creators from one audit-log backscan. Called by
+// /ttdb-scan-channels and, once activated, by every startup.
 export async function scanGuildChannels(ctx, guild, now = Date.now()) {
   const cfg = getConfig(ctx.db, guild.id);
   const channels = await guild.channels.fetch().catch(() => null);
-  if (!channels) return { recorded: 0 };
+  if (!channels) return { recorded: 0, unknown: 0 };
   const unrecorded = [];
   for (const channel of channels.values()) {
     if (!isTrackedChannel(cfg, channel)) continue;
     if (getKnownChannel(ctx.db, channel.id)) continue;
     unrecorded.push(channel);
   }
-  if (unrecorded.length === 0) return { recorded: 0 };
+  if (unrecorded.length === 0) return { recorded: 0, unknown: 0 };
   const creators = await auditLogCreatorMap(guild);
+  let unknown = 0;
   for (const channel of unrecorded) {
-    await recordAndProtect(ctx, guild, channel, creators.get(channel.id) ?? null, now);
+    const creatorId = creators.get(channel.id) ?? null;
+    if (!creatorId) unknown += 1;
+    await recordAndProtect(ctx, guild, channel, creatorId, now);
   }
-  return { recorded: unrecorded.length };
+  return { recorded: unrecorded.length, unknown };
+}
+
+// The startup path honors the activation gate; the command bypasses it
+// (it is the activation).
+export async function runStartupScan(ctx, guild, now = Date.now()) {
+  if (!registryActive(getConfig(ctx.db, guild.id))) return { recorded: 0, unknown: 0 };
+  return scanGuildChannels(ctx, guild, now);
 }
 
 // Re-aligns every recorded, still-existing, non-permanent channel; forgets
@@ -207,6 +223,7 @@ export async function runDailyPermissionSweep(ctx, now = Date.now()) {
   if (now - last < unit) return false;
   setAppState(ctx.db, 'perm_sweep_at', String(now));
   for (const guild of ctx.client?.guilds?.cache?.values?.() ?? []) {
+    if (!registryActive(getConfig(ctx.db, guild.id))) continue;
     try {
       const corrections = await sweepChannelPermissions(ctx, guild, now);
       for (const { channelId, changes } of corrections) {

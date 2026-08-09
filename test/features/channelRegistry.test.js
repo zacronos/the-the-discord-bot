@@ -5,6 +5,7 @@ import {
   handleChannelCreate,
   handleChannelDelete,
   runDailyPermissionSweep,
+  runStartupScan,
   scanGuildChannels,
   sweepChannelPermissions,
 } from '../../src/features/channelRegistry.js';
@@ -72,8 +73,12 @@ function fakeGuild({ id = 'g1', channels = [], auditEntries = [], memberIds = ['
 
 const ctxFor = (db) => ({ db, sleep: async () => {} });
 
+// Channel protection is opt-in per guild: /ttdb-scan-channels stamps this.
+const activate = (db) => setConfig(db, 'g1', { registry_activated_at: 1 });
+
 test('a created channel is recorded with its audit-log creator and locked to creator-only deletion', async (t) => {
   const db = tempDb(t);
+  activate(db);
   const channel = fakeChannel({ id: 'chan-new' });
   const guild = fakeGuild({
     channels: [channel],
@@ -99,6 +104,7 @@ test('a created channel is recorded with its audit-log creator and locked to cre
 
 test('the creator lookup retries while the audit-log entry lags the gateway event', async (t) => {
   const db = tempDb(t);
+  activate(db);
   const channel = fakeChannel({ id: 'chan-new' });
   const guild = fakeGuild({ channels: [channel] });
   const lateEntries = [{ id: '30', targetId: 'chan-new', executorId: 'u1' }];
@@ -119,6 +125,7 @@ test('the creator lookup retries while the audit-log entry lags the gateway even
 
 test('a channel whose creator is unknowable is still recorded and locked (admins only)', async (t) => {
   const db = tempDb(t);
+  activate(db);
   const channel = fakeChannel({ id: 'chan-mystery' });
   fakeGuild({ channels: [channel] }); // no audit entries at all
 
@@ -134,6 +141,7 @@ test('a channel whose creator is unknowable is still recorded and locked (admins
 
 test('channels in other permanent groups and non-text/voice channels are not tracked', async (t) => {
   const db = tempDb(t);
+  activate(db);
   setConfig(db, 'g1', { other_permanent_category_ids: JSON.stringify(['cat-other']) });
   const grouped = fakeChannel({ id: 'chan-grouped', parentId: 'cat-other' });
   const category = fakeChannel({ id: 'cat-x', type: 4 });
@@ -149,6 +157,7 @@ test('channels in other permanent groups and non-text/voice channels are not tra
 
 test('a channel created inside a configured permanent category is recorded but not locked', async (t) => {
   const db = tempDb(t);
+  activate(db);
   setConfig(db, 'g1', { permanent_category_text_id: 'cat-perm' });
   const channel = fakeChannel({ id: 'chan-perm', parentId: 'cat-perm' });
   fakeGuild({
@@ -164,6 +173,7 @@ test('a channel created inside a configured permanent category is recorded but n
 
 test('a departed creator gets no overwrite; the @everyone deny still applies', async (t) => {
   const db = tempDb(t);
+  activate(db);
   const channel = fakeChannel({ id: 'chan-orphaned' });
   fakeGuild({
     channels: [channel],
@@ -179,6 +189,7 @@ test('a departed creator gets no overwrite; the @everyone deny still applies', a
 
 test('handleChannelDelete forgets the channel', async (t) => {
   const db = tempDb(t);
+  activate(db);
   recordKnownChannel(db, { channelId: 'chan-1', guildId: 'g1', creatorId: 'u1', recordedAt: 0 });
   await handleChannelDelete({ db }, { id: 'chan-1', guild: { id: 'g1' } });
   assert.equal(getKnownChannel(db, 'chan-1'), undefined);
@@ -186,6 +197,7 @@ test('handleChannelDelete forgets the channel', async (t) => {
 
 test('the startup scan backfills unrecorded channels from a paginated audit-log backscan', async (t) => {
   const db = tempDb(t);
+  activate(db);
   setConfig(db, 'g1', {
     permanent_category_id: 'cat-perm',
     other_permanent_category_ids: JSON.stringify(['cat-other']),
@@ -239,6 +251,7 @@ test('the startup scan backfills unrecorded channels from a paginated audit-log 
 
 test('the permission sweep corrects drift: missing deny, missing creator allow, foreign allows', async (t) => {
   const db = tempDb(t);
+  activate(db);
   recordKnownChannel(db, { channelId: 'chan-drift', guildId: 'g1', creatorId: 'u1', recordedAt: 0 });
   const channel = fakeChannel({
     id: 'chan-drift',
@@ -267,6 +280,7 @@ test('the permission sweep corrects drift: missing deny, missing creator allow, 
 
 test('the permission sweep is a no-op when permissions already align', async (t) => {
   const db = tempDb(t);
+  activate(db);
   recordKnownChannel(db, { channelId: 'chan-good', guildId: 'g1', creatorId: 'u1', recordedAt: 0 });
   const channel = fakeChannel({
     id: 'chan-good',
@@ -284,6 +298,7 @@ test('the permission sweep is a no-op when permissions already align', async (t)
 
 test('the permission sweep forgets vanished channels and skips channels now in permanent groups', async (t) => {
   const db = tempDb(t);
+  activate(db);
   setConfig(db, 'g1', {
     permanent_category_text_id: 'cat-perm',
     other_permanent_category_ids: JSON.stringify(['cat-other']),
@@ -309,6 +324,7 @@ test('the permission sweep forgets vanished channels and skips channels now in p
 
 test('runDailyPermissionSweep runs at most once per day and stamps app_state', async (t) => {
   const db = tempDb(t);
+  activate(db);
   recordKnownChannel(db, { channelId: 'chan-1', guildId: 'g1', creatorId: 'u1', recordedAt: 0 });
   const channel = fakeChannel({ id: 'chan-1' });
   const guild = fakeGuild({ channels: [channel] });
@@ -325,4 +341,47 @@ test('runDailyPermissionSweep runs at most once per day and stamps app_state', a
   assert.equal(channel.edits.length, editsAfterFirst);
 
   assert.equal(await runDailyPermissionSweep(ctx, DAY + DAY), true, 'a day later: sweeps again');
+});
+
+test('before activation: ChannelCreate records nothing, locks nothing, reads no audit log', async (t) => {
+  const db = tempDb(t); // no activate(db)
+  const channel = fakeChannel({ id: 'chan-early' });
+  const guild = fakeGuild({
+    channels: [channel],
+    auditEntries: [{ id: '30', targetId: 'chan-early', executorId: 'u1' }],
+  });
+
+  await handleChannelCreate(ctxFor(db), channel);
+
+  assert.equal(getKnownChannel(db, 'chan-early'), undefined, 'nothing recorded');
+  assert.equal(channel.edits.length, 0, 'no permission changes');
+  assert.equal(guild.auditCalls.length, 0, 'the audit log is not even read');
+});
+
+test('runStartupScan skips guilds that have not been activated', async (t) => {
+  const db = tempDb(t); // no activate(db)
+  const channel = fakeChannel({ id: 'chan-early' });
+  const guild = fakeGuild({ channels: [channel] });
+
+  const skipped = await runStartupScan(ctxFor(db), guild);
+  assert.equal(skipped.recorded, 0);
+  assert.equal(guild.auditCalls.length, 0);
+  assert.equal(getKnownChannel(db, 'chan-early'), undefined);
+
+  activate(db);
+  const scanned = await runStartupScan(ctxFor(db), guild, 5);
+  assert.equal(scanned.recorded, 1, 'an activated guild scans normally');
+  assert.ok(getKnownChannel(db, 'chan-early'));
+});
+
+test('the daily permission sweep leaves non-activated guilds untouched', async (t) => {
+  const db = tempDb(t); // no activate(db)
+  recordKnownChannel(db, { channelId: 'chan-1', guildId: 'g1', creatorId: 'u1', recordedAt: 0 });
+  const channel = fakeChannel({ id: 'chan-1' }); // drifted: no lock overwrites at all
+  const guild = fakeGuild({ channels: [channel] });
+  const client = { guilds: { cache: new Map([['g1', guild]]) } };
+
+  const DAY = 24 * 3_600_000;
+  assert.equal(await runDailyPermissionSweep({ db, client }, DAY), true, 'the gate still stamps');
+  assert.equal(channel.edits.length, 0, 'no locks are applied before activation');
 });

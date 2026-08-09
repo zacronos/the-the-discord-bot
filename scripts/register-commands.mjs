@@ -7,6 +7,7 @@ import { REST, Routes } from 'discord.js';
 import { loadEnv } from '../src/env.js';
 import { configCommandDefinition } from '../src/features/configCommands.js';
 import { deletionsCommandDefinition } from '../src/features/deletionsCommand.js';
+import { scanCommandDefinition } from '../src/features/scanCommand.js';
 import { setCreatorCommandDefinition } from '../src/features/setCreatorCommand.js';
 import { closeHttpAgent, makeScriptLog } from './script-log.mjs';
 
@@ -31,7 +32,12 @@ const HINTS = [
   ],
 ];
 
-const COMMANDS = [configCommandDefinition, deletionsCommandDefinition, setCreatorCommandDefinition];
+const COMMANDS = [
+  configCommandDefinition,
+  deletionsCommandDefinition,
+  setCreatorCommandDefinition,
+  scanCommandDefinition,
+];
 
 try {
   const env = loadEnv();

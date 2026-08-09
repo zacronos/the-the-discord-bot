@@ -14,7 +14,10 @@ which also records every design decision.)*
 2. [Invite the bot to your server](#inviting-the-bot-to-a-server).
 3. [Register the slash commands and configure](#configuring-the-bot) with
    `/ttdb-config` — polls unlock once the four required settings are set.
-4. Run the bot: `npm start`, or set up
+4. Run `/ttdb-scan-channels` to activate
+   [channel protection](#channel-creators-and-deletion-protection) —
+   configure `other-permanent-groups` exemptions **before** this step.
+5. Run the bot: `npm start`, or set up
    [auto-start on Windows](#running-on-startup-windows).
 
 ## Creating your Discord application
@@ -273,12 +276,17 @@ number, and the everyone-has-voted early close counts only them.
 
 ## Channel creators and deletion protection
 
-The bot keeps a registry of every text and voice channel and who created
-it. New channels are recorded the moment they're created (the creator is
-read from the server's audit log); on startup the bot scans for channels
-it doesn't know yet and records them retroactively. Discord keeps audit
-log entries for ~45 days, so a channel much older than the bot's first
-scan may be recorded with an unknown creator. Channels inside
+Channel protection is **off until an admin runs `/ttdb-scan-channels`**.
+Before that, the bot records nothing and touches no channel permissions —
+so on a fresh server you can configure `other-permanent-groups`
+exemptions first, then activate. The command scans every existing text
+and voice channel, records who created it (from the server's audit log),
+applies the deletion locks described below, and switches on the ongoing
+machinery: new channels are recorded the moment they're created, startup
+scans backfill anything missed, and permissions are re-checked daily.
+Re-running the command later simply backfills. Discord keeps audit log
+entries for ~45 days, so a channel much older than the first scan is
+recorded with an unknown creator. Channels inside
 `other-permanent-groups` categories are left entirely alone — neither
 tracked nor touched.
 

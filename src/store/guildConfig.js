@@ -23,6 +23,7 @@ const FIELDS = new Set([
   'invite_channel_id',
   'poll_starter_role_id',
   'max_open_polls',
+  'registry_activated_at',
 ]);
 
 export function getConfig(db, guildId) {
