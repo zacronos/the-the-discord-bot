@@ -178,6 +178,11 @@ closes to see or change your vote. Untouched ballots (and the
 poll-creation confirmation) clean themselves up after ~14 minutes. The poll closes at its scheduled hour — or
 immediately, once every (non-bot) member of the server has voted.
 
+If you started the poll, your own ballot also carries a **Withdraw this
+poll** button: it cancels the poll for everyone, removes the public poll
+message, and discards all votes (you get the cancellation by DM, like
+any aborted poll).
+
 **An honest note on anonymity:** votes are anonymous to everyone on
 Discord, including server admins and the poll initiator. However, whoever
 runs the bot host can technically read the bot's local database while a

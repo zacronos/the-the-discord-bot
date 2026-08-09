@@ -359,3 +359,19 @@ test('casting on a closed poll is refused and records nothing', async (t) => {
   assert.equal(getVote(db, poll.id, 'u1'), undefined);
   assert.match(interaction.updates[0].content, /closed/i);
 });
+
+test("the initiator's ballot carries a withdraw button; other voters' do not", async (t) => {
+  clearEligibilityCache();
+  const db = tempDb(t);
+  const poll = makePoll(db); // initiator u9
+  const initiator = fakeInteraction({ guild: fakeGuild(), userId: 'u9' });
+  await handleVoteButton({ db }, initiator, [String(poll.id)]);
+  const ids = initiator.replies[0].components.flatMap((row) => row.components.map((b) => b.data.custom_id));
+  assert.ok(ids.includes(`ttdb:withdraw:${poll.id}`), 'the initiator sees the withdraw button');
+  assert.equal(ids.length, 5, 'four choices plus withdraw');
+
+  const voter = fakeInteraction({ guild: fakeGuild(), userId: 'u1' });
+  await handleVoteButton({ db }, voter, [String(poll.id)]);
+  const voterIds = voter.replies[0].components.flatMap((row) => row.components.map((b) => b.data.custom_id));
+  assert.ok(!voterIds.some((id) => id.startsWith('ttdb:withdraw')), 'ordinary voters do not');
+});

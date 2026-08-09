@@ -6,9 +6,10 @@ import {
   closePollPipeline,
   handleGuildLeave,
   handleResendButton,
+  handleWithdrawButton,
 } from '../../src/features/pollClose.js';
 import { setConfig } from '../../src/store/guildConfig.js';
-import { claimForClose, createPoll, getPoll, setMessageId } from '../../src/store/polls.js';
+import { claimForClose, closePoll, createPoll, getPoll, setMessageId } from '../../src/store/polls.js';
 import { castVote, countVoters } from '../../src/store/votes.js';
 import { deleteChannelAction } from '../../src/features/actions/deleteChannel.js';
 import { clearBallotTracking, handleVoteButton } from '../../src/features/ballot.js';
@@ -726,4 +727,53 @@ test('a deletion poll whose channel vanished resolves with the other-channel thr
   castVote(db, poll.id, 'u1', 'yes');
   await closePollPipeline(ctx, poll);
   assert.equal(getPoll(db, poll.id).status, 'passed', 'kind falls back to "other" when unknowable');
+});
+
+test('withdraw aborts the poll, deletes its message, DMs the initiator, and confirms in place', async (t) => {
+  const { db, ctx, poll, message, dms } = makeWorld(t);
+  castVote(db, poll.id, 'u2', 'yes');
+  const updates = [];
+  const interaction = {
+    guildId: 'g1',
+    guild: await ctx.client.guilds.fetch('g1'),
+    user: { id: 'u1' }, // makeWorld's initiator
+    updates,
+    update: async (payload) => updates.push(payload),
+  };
+
+  await handleWithdrawButton(ctx, interaction, [String(poll.id)]);
+
+  assert.equal(getPoll(db, poll.id).status, 'aborted');
+  assert.equal(message.deleted, true, 'the public poll message is removed');
+  assert.equal(countVoters(db, poll.id), 0, 'votes discarded');
+  assert.match(updates[0].content, /withdrawn/i);
+  assert.deepEqual(updates[0].components, []);
+  const dm = dms.find((d) => d.userId === 'u1');
+  assert.match(dm.content, /withdrew/i);
+});
+
+test('withdraw refuses non-initiators and closed polls', async (t) => {
+  const { db, ctx, poll } = makeWorld(t);
+  const press = (userId) => {
+    const updates = [];
+    return {
+      interaction: {
+        guildId: 'g1',
+        guild: null,
+        user: { id: userId },
+        update: async (payload) => updates.push(payload),
+      },
+      updates,
+    };
+  };
+
+  const forged = press('u2');
+  await handleWithdrawButton(ctx, forged.interaction, [String(poll.id)]);
+  assert.equal(getPoll(db, poll.id).status, 'open', 'the poll is untouched');
+  assert.match(forged.updates[0].content, /only the poll initiator/i);
+
+  closePoll(db, poll.id, 'failed');
+  const late = press('u1');
+  await handleWithdrawButton(ctx, late.interaction, [String(poll.id)]);
+  assert.match(late.updates[0].content, /closed/i);
 });

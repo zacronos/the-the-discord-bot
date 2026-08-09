@@ -37,7 +37,9 @@ export function choiceLabel(type, choice) {
 // design: after a restart the old tokens would be expired anyway.
 const liveBallots = new Map(); // pollId -> Map<userId, { interaction, at, timer }>
 
-function untrackBallot(pollId, userId) {
+// Exported for the withdraw flow, which turns the initiator's panel into
+// its confirmation and must keep it out of the close pipeline's cleanup.
+export function untrackBallot(pollId, userId) {
   const perUser = liveBallots.get(pollId);
   if (!perUser) return;
   const entry = perUser.get(userId);
@@ -101,7 +103,7 @@ const CHOICE_STYLES = {
   abstain: ButtonStyle.Secondary,
 };
 
-export function buildBallot(poll, currentChoice) {
+export function buildBallot(poll, currentChoice, { isInitiator = false } = {}) {
   const status = currentChoice
     ? `Your current vote: **${choiceLabel(poll.type, currentChoice)}**\nOnly you can see this. You can change your vote until the poll closes.`
     : "You haven't voted yet. Only you can see this ballot — pick an option:";
@@ -115,6 +117,17 @@ export function buildBallot(poll, currentChoice) {
         .setStyle(CHOICE_STYLES[choice])
     )
   );
+  // The initiator's own ballot doubles as the place to call the poll off.
+  if (isInitiator) {
+    rows.push(
+      new ActionRowBuilder().addComponents(
+        new ButtonBuilder()
+          .setCustomId(buildId('withdraw', poll.id))
+          .setLabel('Withdraw this poll (cancels it for everyone)')
+          .setStyle(ButtonStyle.Danger)
+      )
+    );
+  }
   return { content, components: rows, allowedMentions: { parse: [] } };
 }
 
@@ -137,7 +150,10 @@ export async function handleVoteButton(ctx, interaction, [pollIdRaw]) {
     return interaction.reply({ content: 'This poll has closed.', flags: MessageFlags.Ephemeral });
   }
   const current = getVote(ctx.db, poll.id, interaction.user.id);
-  await interaction.reply({ ...buildBallot(poll, current), flags: MessageFlags.Ephemeral });
+  await interaction.reply({
+    ...buildBallot(poll, current, { isInitiator: interaction.user.id === poll.initiator_id }),
+    flags: MessageFlags.Ephemeral,
+  });
   trackBallot(ctx, poll, interaction, ctx.now?.() ?? Date.now());
 }
 

@@ -19,7 +19,12 @@ import {
   scanGuildChannels,
 } from './features/channelRegistry.js';
 import { rehydrateEphemeralCleanups } from './features/ephemeralCleanup.js';
-import { closePollPipeline, handleGuildLeave, handleResendButton } from './features/pollClose.js';
+import {
+  closePollPipeline,
+  handleGuildLeave,
+  handleResendButton,
+  handleWithdrawButton,
+} from './features/pollClose.js';
 import {
   handleConfirmPublicButton,
   handleCreateModal,
@@ -55,6 +60,7 @@ router.component('pubok', handleConfirmPublicButton);
 router.component('vote', handleVoteButton);
 router.component('cast', handleCastButton);
 router.component('resend', handleResendButton);
+router.component('withdraw', handleWithdrawButton);
 router.modal('create', handleCreateModal);
 
 client.on(Events.InteractionCreate, (interaction) => router.dispatch(interaction));

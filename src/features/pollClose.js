@@ -14,7 +14,7 @@ import {
   listVotersByChoice,
 } from '../store/votes.js';
 import { resolvePollThreshold } from '../polls/threshold.js';
-import { deleteBallots } from './ballot.js';
+import { deleteBallots, untrackBallot } from './ballot.js';
 import { fetchGuildMembers, pollPopulation } from './eligibility.js';
 
 // Channel references in DMs lead with the literal name (a bare <#id>
@@ -193,6 +193,34 @@ export async function abortPoll(ctx, poll, reason) {
     `Your poll about ${describePoll(poll)} was cancelled because ${reason}. You can start a new one from the poll channel.`
   );
   return true;
+}
+
+// The withdraw button on the initiator's own ballot: cancels their open
+// poll for everyone. Only the initiator's ballot carries the button, and
+// the handler re-checks — a forged press from anyone else is refused.
+export async function handleWithdrawButton(ctx, interaction, [pollIdRaw]) {
+  const poll = getPoll(ctx.db, Number(pollIdRaw));
+  if (!poll || poll.status !== 'open' || poll.guild_id !== interaction.guildId) {
+    return interaction.update({ content: 'This poll has closed.', components: [] });
+  }
+  if (interaction.user.id !== poll.initiator_id) {
+    return interaction.update({ content: 'Only the poll initiator can withdraw it.', components: [] });
+  }
+  // Keep this panel out of abortPoll's ballot cleanup: it becomes the
+  // confirmation the initiator is looking at.
+  untrackBallot(poll.id, interaction.user.id);
+  await interaction.update({
+    content: '✅ Poll withdrawn — the poll message was removed and all votes discarded.',
+    components: [],
+  });
+  try {
+    const channel = await interaction.guild.channels.fetch(poll.channel_id);
+    const message = await channel.messages.fetch(poll.message_id);
+    await message.delete();
+  } catch {
+    // message or channel already gone — the abort below still stands
+  }
+  await abortPoll(ctx, poll, 'you withdrew it');
 }
 
 // 7.3: the bot was removed from a guild — its open polls can never conclude.
