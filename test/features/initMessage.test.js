@@ -1,5 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { ButtonStyle } from 'discord.js';
 import { INIT_MARKER, buildInitMessage, ensureInitMessage } from '../../src/features/initMessage.js';
 import { getConfig, setConfig } from '../../src/store/guildConfig.js';
 import { tempDb } from '../store/helpers.js';
@@ -193,6 +194,11 @@ test('buildInitMessage carries the marker footer with a content hash, and both s
   );
   const ids = payload.components[0].components.map((b) => b.data.custom_id);
   assert.deepEqual(ids, ['ttdb:start:invite', 'ttdb:start:permchan', 'ttdb:start:delchan']);
+  assert.deepEqual(
+    payload.components[0].components.map((b) => b.data.style),
+    [ButtonStyle.Primary, ButtonStyle.Success, ButtonStyle.Danger],
+    'invite blue, permanence green, deletion red'
+  );
   assert.equal(currentFooter(), currentFooter(), 'hash is deterministic');
 });
 

@@ -32,7 +32,7 @@ const BUTTONS = [
   {
     customId: buildId('start', 'permchan'),
     label: 'Start a vote on making a channel permanent',
-    style: ButtonStyle.Secondary,
+    style: ButtonStyle.Success,
   },
   {
     customId: buildId('start', 'delchan'),
