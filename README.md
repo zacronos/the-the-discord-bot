@@ -137,6 +137,8 @@ poll type. That message is the entry point for everything members do.
   what the current code and settings would produce; if anything changed —
   a code update, a new hard-no weight, a new threshold — the existing
   message is **edited in place**: same message, no repost.
+- The message is kept **pinned**: every one of those scans re-pins it if
+  it was ever unpinned.
 - If the message gets deleted, the bot reposts it on its next startup or
   the next configuration change.
 - If you change `poll-channel`, the old message is removed and a fresh one

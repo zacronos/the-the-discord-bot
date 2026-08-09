@@ -99,8 +99,17 @@ export async function ensureInitMessage(ctx, guild) {
   const desired = buildInitMessage(cfg);
   const desiredFooter = desired.embeds[0].data.footer.text;
   const footerOf = (message) => message.embeds?.[0]?.footer?.text ?? '';
+  // The entry point must stay findable: every scan re-pins a message that
+  // lost its pin. Best-effort — a full pin list must not break the scan.
+  const ensurePinned = async (message) => {
+    if (message.pinned) return;
+    await message
+      .pin()
+      .catch((err) => console.warn(`[ttdb] pinning the init message failed: ${err.message}`));
+  };
   const syncContent = async (message) => {
     if (footerOf(message) !== desiredFooter) await message.edit(desired);
+    await ensurePinned(message);
     return message;
   };
 
@@ -140,5 +149,6 @@ export async function ensureInitMessage(ctx, guild) {
 
   const sent = await channel.send(desired);
   setConfig(db, guild.id, { init_message_id: sent.id, init_channel_id: channel.id });
+  await ensurePinned(sent);
   return sent;
 }

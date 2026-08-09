@@ -14,18 +14,24 @@ const FULL_CONFIG = {
 
 const currentFooter = (cfg = FULL_CONFIG) => buildInitMessage(cfg).embeds[0].data.footer.text;
 
-function fakeMessage({ id, authorId = 'bot-user', footer = INIT_MARKER } = {}) {
+function fakeMessage({ id, authorId = 'bot-user', footer = INIT_MARKER, pinned = false } = {}) {
   return {
     id,
     author: { id: authorId },
     embeds: [{ footer: { text: footer } }],
     deleted: false,
     edits: [],
+    pinned,
+    pins: 0,
     async delete() {
       this.deleted = true;
     },
     async edit(payload) {
       this.edits.push(payload);
+    },
+    async pin() {
+      this.pinned = true;
+      this.pins += 1;
     },
   };
 }
@@ -264,6 +270,51 @@ test('when the poll channel changes, deletes the old message and posts in the ne
   const cfg = getConfig(db, 'g1');
   assert.equal(cfg.init_message_id, result.id);
   assert.equal(cfg.init_channel_id, 'chan-new');
+});
+
+test('every scan of the init message ensures it is pinned, without re-pinning', async (t) => {
+  const db = tempDb(t);
+  const existing = fakeMessage({ id: 'msg-1', footer: currentFooter() });
+  const channel = fakeChannel({ id: 'chan-1', messages: [existing] });
+  const guild = fakeGuild({ channels: [channel] });
+  setConfig(db, 'g1', { ...FULL_CONFIG, init_message_id: 'msg-1', init_channel_id: 'chan-1' });
+
+  await ensureInitMessage({ db }, guild);
+  assert.equal(existing.pinned, true, 'an unpinned init message gets pinned on scan');
+  assert.equal(existing.pins, 1);
+
+  await ensureInitMessage({ db }, guild);
+  assert.equal(existing.pins, 1, 'an already-pinned message is not re-pinned');
+});
+
+test('an adopted orphan and a freshly posted init message are pinned too', async (t) => {
+  const db = tempDb(t);
+  const orphan = fakeMessage({ id: 'msg-b' });
+  const adoptChannel = fakeChannel({ id: 'chan-1', messages: [orphan] });
+  const adoptGuild = fakeGuild({ channels: [adoptChannel] });
+  setConfig(db, 'g1', FULL_CONFIG);
+  await ensureInitMessage({ db }, adoptGuild);
+  assert.equal(orphan.pinned, true, 'adopted message pinned');
+
+  const freshChannel = fakeChannel({ id: 'chan-2' });
+  const freshGuild = fakeGuild({ id: 'g2', channels: [freshChannel] });
+  setConfig(db, 'g2', { ...FULL_CONFIG, poll_channel_id: 'chan-2' });
+  const posted = await ensureInitMessage({ db }, freshGuild);
+  assert.equal(posted.pinned, true, 'fresh post pinned');
+});
+
+test('a failing pin does not break the init-message scan', async (t) => {
+  const db = tempDb(t);
+  const existing = fakeMessage({ id: 'msg-1', footer: currentFooter() });
+  existing.pin = async () => {
+    throw new Error('Maximum number of pins reached');
+  };
+  const channel = fakeChannel({ id: 'chan-1', messages: [existing] });
+  const guild = fakeGuild({ channels: [channel] });
+  setConfig(db, 'g1', { ...FULL_CONFIG, init_message_id: 'msg-1', init_channel_id: 'chan-1' });
+
+  const result = await ensureInitMessage({ db }, guild);
+  assert.equal(result, existing, 'the message is still returned');
 });
 
 test('throws a helpful error when the configured poll channel is gone', async (t) => {
