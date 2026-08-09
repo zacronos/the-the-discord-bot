@@ -14,7 +14,7 @@ import {
   listVotersByChoice,
 } from '../store/votes.js';
 import { deleteBallots } from './ballot.js';
-import { thresholdFor } from './configCommands.js';
+import { deletionThresholdFor, managedPermanentCategoryIds, thresholdFor } from './configCommands.js';
 import { fetchGuildMembers, pollPopulation } from './eligibility.js';
 
 // Channel references in DMs lead with the literal name (a bare <#id>
@@ -89,6 +89,18 @@ async function postDmFallback(ctx, guild, poll) {
 
 const defaultSleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
+// A deletion poll's bar depends on where its channel lives at close time —
+// permanent-category channels have their own threshold. A vanished channel
+// resolves as 'other' (the outcome is moot; the follow-up action reports
+// the missing channel either way).
+async function pollThreshold(guild, cfg, poll) {
+  if (poll.type !== 'delete_channel') return thresholdFor(cfg, poll.type);
+  const channel = await guild.channels.fetch(poll.subject).catch(() => null);
+  const kind =
+    channel && managedPermanentCategoryIds(cfg).has(channel.parentId) ? 'permanent' : 'other';
+  return deletionThresholdFor(cfg, kind);
+}
+
 export async function closePollPipeline(ctx, poll) {
   if (!claimForClose(ctx.db, poll.id)) return false;
   const sleep = ctx.sleep ?? defaultSleep;
@@ -116,7 +128,8 @@ export async function closePollPipeline(ctx, poll) {
     populationError = err;
     return null;
   });
-  const threshold = thresholdFor(cfg, poll.type) ?? { type: 'count', value: Number.POSITIVE_INFINITY };
+  const threshold =
+    (await pollThreshold(guild, cfg, poll)) ?? { type: 'count', value: Number.POSITIVE_INFINITY };
   if (population == null && (threshold.type === 'percent' || poll.is_private)) {
     // An unknowable population must not decide the poll either way — put it
     // back and let the next sweep retry. (Private polls need the viewer

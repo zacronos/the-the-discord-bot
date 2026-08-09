@@ -87,7 +87,8 @@ export const configCommandDefinition = new SlashCommandBuilder()
           .addChoices(
             { name: 'invite polls', value: 'invite' },
             { name: 'channel-permanence polls', value: 'channel-permanence' },
-            { name: 'channel-deletion polls', value: 'channel-deletion' },
+            { name: 'channel-deletion polls — permanent-category channels', value: 'channel-deletion' },
+            { name: 'channel-deletion polls — other channels', value: 'channel-deletion-other' },
             { name: 'all poll types', value: 'both' }
           )
       )
@@ -170,20 +171,34 @@ export const configCommandDefinition = new SlashCommandBuilder()
   .addSubcommand((sub) => sub.setName('show').setDescription('Show current settings'))
   .toJSON();
 
-// Per-type threshold resolution: the per-type columns win, with the legacy
-// shared columns as fallback (kept so pre-existing configs stay valid).
-export function thresholdFor(cfg, pollType) {
-  const [type, value] =
-    pollType === 'invite'
-      ? [cfg?.threshold_type_invite, cfg?.threshold_value_invite]
-      : pollType === 'delete_channel'
-        ? [cfg?.threshold_type_delchan, cfg?.threshold_value_delchan]
-        : [cfg?.threshold_type_permchan, cfg?.threshold_value_permchan];
+// Per-type columns win, with the legacy shared columns as fallback (kept so
+// pre-existing configs stay valid).
+function resolveThreshold(cfg, type, value) {
   if (type != null && value != null) return { type, value };
   if (cfg?.threshold_type != null && cfg?.threshold_value != null) {
     return { type: cfg.threshold_type, value: cfg.threshold_value };
   }
   return null;
+}
+
+export function thresholdFor(cfg, pollType) {
+  if (pollType === 'delete_channel') {
+    // Deletion thresholds are per-kind — resolve them with
+    // deletionThresholdFor and the nominated channel in hand.
+    throw new Error('use deletionThresholdFor for delete_channel polls');
+  }
+  return pollType === 'invite'
+    ? resolveThreshold(cfg, cfg?.threshold_type_invite, cfg?.threshold_value_invite)
+    : resolveThreshold(cfg, cfg?.threshold_type_permchan, cfg?.threshold_value_permchan);
+}
+
+// Deletion polls have two bars: 'permanent' for channels inside the managed
+// permanent categories (the pre-split columns keep this meaning, so existing
+// configs stay valid), 'other' for every other channel.
+export function deletionThresholdFor(cfg, kind) {
+  return kind === 'other'
+    ? resolveThreshold(cfg, cfg?.threshold_type_delchan_other, cfg?.threshold_value_delchan_other)
+    : resolveThreshold(cfg, cfg?.threshold_type_delchan, cfg?.threshold_value_delchan);
 }
 
 // Per-channel-kind permanent category. Text falls back to the legacy
@@ -278,10 +293,15 @@ function renderShow(cfg = {}) {
     `• Hard-no weight (required): ${set(cfg.hard_no_weight, (w) => (w === 'veto' ? 'veto — a single hard no fails the poll' : w))}`,
     `• Pass threshold — invite polls (required): ${inviteThreshold ? formatThreshold(inviteThreshold) : '*not set*'}`,
     `• Pass threshold — channel-permanence polls (required): ${permThreshold ? formatThreshold(permThreshold) : '*not set*'}`,
-    `• Pass threshold — channel-deletion polls: ${
-      thresholdFor(cfg, 'delete_channel')
-        ? formatThreshold(thresholdFor(cfg, 'delete_channel'))
-        : "*not set* — channel-deletion polls can't start"
+    `• Pass threshold — channel-deletion polls (permanent categories): ${
+      deletionThresholdFor(cfg, 'permanent')
+        ? formatThreshold(deletionThresholdFor(cfg, 'permanent'))
+        : "*not set* — these deletion polls can't start"
+    }`,
+    `• Pass threshold — channel-deletion polls (other channels): ${
+      deletionThresholdFor(cfg, 'other')
+        ? formatThreshold(deletionThresholdFor(cfg, 'other'))
+        : "*not set* — these deletion polls can't start"
     }`,
     `• Permanent category — text channels (required): ${textCategory ? `<#${textCategory}>` : '*not set*'}`,
     `• Permanent category — voice channels: ${voiceCategory ? `<#${voiceCategory}>` : "*not set* — voice channels can't be nominated"}`,
@@ -364,6 +384,10 @@ export async function handleConfigCommand(ctx, interaction) {
         patch.threshold_type_delchan = type;
         patch.threshold_value_delchan = value;
       }
+      if (scope === 'channel-deletion-other' || scope === 'both') {
+        patch.threshold_type_delchan_other = type;
+        patch.threshold_value_delchan_other = value;
+      }
       setConfig(db, guildId, patch);
       const scopeText =
         scope === 'both'
@@ -371,8 +395,10 @@ export async function handleConfigCommand(ctx, interaction) {
           : scope === 'invite'
             ? 'Invite polls'
             : scope === 'channel-deletion'
-              ? 'Channel-deletion polls'
-              : 'Channel-permanence polls';
+              ? 'Channel-deletion polls (permanent-category channels)'
+              : scope === 'channel-deletion-other'
+                ? 'Channel-deletion polls (other channels)'
+                : 'Channel-permanence polls';
       lines.push(
         `${scopeText} now pass when the point total at poll closing is at least ${formatThreshold({ type, value })}.`
       );

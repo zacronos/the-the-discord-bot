@@ -68,6 +68,12 @@ test('command definition: name, admin-only default permission, guild-only, all s
     ['points — literal points total', 'percent — of current (non-bot) members'],
     'the literal-count choice speaks of points, not votes'
   );
+  const pollType = passThreshold.options.find((o) => o.name === 'poll-type');
+  assert.deepEqual(
+    pollType.choices.map((c) => c.value),
+    ['invite', 'channel-permanence', 'channel-deletion', 'channel-deletion-other', 'both'],
+    'channel deletion splits into permanent-category and other-channel thresholds'
+  );
   const hardNo = configCommandDefinition.options
     .find((o) => o.name === 'hard-no-weight')
     .options.find((o) => o.name === 'weight');
@@ -250,8 +256,10 @@ test('pass-threshold with no poll-type sets both poll types', async (t) => {
   assert.equal(cfg.threshold_value_invite, 50);
   assert.equal(cfg.threshold_type_permchan, 'percent');
   assert.equal(cfg.threshold_value_permchan, 50);
-  assert.equal(cfg.threshold_type_delchan, 'percent', 'the default scope covers all three poll types');
+  assert.equal(cfg.threshold_type_delchan, 'percent', 'the default scope covers every poll type');
   assert.equal(cfg.threshold_value_delchan, 50);
+  assert.equal(cfg.threshold_type_delchan_other, 'percent', 'including other-channel deletions');
+  assert.equal(cfg.threshold_value_delchan_other, 50);
 });
 
 test('pass-threshold scoped to channel-deletion touches only that type', async (t) => {
@@ -268,6 +276,38 @@ test('pass-threshold scoped to channel-deletion touches only that type', async (
   assert.equal(cfg.threshold_value_delchan, 4);
   assert.equal(cfg.threshold_type_invite, null);
   assert.equal(cfg.threshold_type_permchan, null);
+  assert.equal(cfg.threshold_type_delchan_other, null, 'the other-channel deletion threshold is its own scope');
+});
+
+test('pass-threshold scoped to channel-deletion-other touches only the other-channel columns', async (t) => {
+  const db = tempDb(t);
+  const interaction = fakeInteraction({
+    sub: 'pass-threshold',
+    opts: { value: 6, unit: 'votes', 'poll-type': 'channel-deletion-other' },
+  });
+  await handleConfigCommand({ db }, interaction);
+  const cfg = getConfig(db, 'g1');
+  assert.equal(cfg.threshold_type_delchan_other, 'count');
+  assert.equal(cfg.threshold_value_delchan_other, 6);
+  assert.equal(cfg.threshold_type_delchan, null, 'permanent-category deletion threshold untouched');
+  assert.match(lastReply(interaction).content, /other channels/i);
+});
+
+test('show reports both deletion thresholds separately', async (t) => {
+  const db = tempDb(t);
+  setConfig(db, 'g1', {
+    threshold_type_delchan: 'count',
+    threshold_value_delchan: 4,
+  });
+  const interaction = fakeInteraction({ sub: 'show' });
+  await handleConfigCommand({ db }, interaction);
+  const content = lastReply(interaction).content;
+  assert.match(content, /channel-deletion polls \(permanent categories\): 4 points total/i);
+  assert.match(
+    content,
+    /channel-deletion polls \(other channels\): \*not set\*/i,
+    'the unset kind is reported as disabled on its own line'
+  );
 });
 
 test('pass-threshold scoped to one poll type leaves the other alone', async (t) => {

@@ -17,8 +17,10 @@ CREATE TABLE IF NOT EXISTS guild_config (
   threshold_value_invite REAL,
   threshold_type_permchan TEXT,
   threshold_value_permchan REAL,
-  threshold_type_delchan TEXT,
+  threshold_type_delchan TEXT,      -- deletion: channels in the managed permanent categories
   threshold_value_delchan REAL,
+  threshold_type_delchan_other TEXT, -- deletion: every other channel
+  threshold_value_delchan_other REAL,
   permanent_category_id TEXT,     -- legacy; text channels fall back to it
   permanent_category_text_id TEXT,
   permanent_category_voice_id TEXT,
@@ -102,6 +104,8 @@ export function openDb(path) {
     'ALTER TABLE guild_config ADD COLUMN threshold_type_delchan TEXT',
     'ALTER TABLE guild_config ADD COLUMN threshold_value_delchan REAL',
     'ALTER TABLE guild_config ADD COLUMN other_permanent_category_ids TEXT',
+    'ALTER TABLE guild_config ADD COLUMN threshold_type_delchan_other TEXT',
+    'ALTER TABLE guild_config ADD COLUMN threshold_value_delchan_other REAL',
     'ALTER TABLE polls ADD COLUMN subject_name TEXT',
     'ALTER TABLE polls ADD COLUMN is_private INTEGER NOT NULL DEFAULT 0',
   ]) {

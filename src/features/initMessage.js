@@ -8,6 +8,7 @@ import { ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder } from 'disc
 import { buildId } from '../discord/customId.js';
 import { getConfig, setConfig } from '../store/guildConfig.js';
 import {
+  deletionThresholdFor,
   formatThreshold,
   hardNoDescription,
   missingRequiredSettings,
@@ -60,7 +61,8 @@ function thresholdList(cfg) {
     'The point total at poll closing must be at least:',
     line('Invite polls', thresholdFor(cfg, 'invite')),
     line('Channel-permanence polls', thresholdFor(cfg, 'permanent_channel')),
-    line('Channel-deletion polls', thresholdFor(cfg, 'delete_channel')),
+    line('Channel-deletion polls (permanent categories)', deletionThresholdFor(cfg, 'permanent')),
+    line('Channel-deletion polls (other channels)', deletionThresholdFor(cfg, 'other')),
   ].join('\n');
 }
 

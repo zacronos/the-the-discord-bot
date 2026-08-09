@@ -383,8 +383,10 @@ test('channel-deletion polls close against their own threshold', async (t) => {
       threshold_value: null,
       threshold_type_invite: 'count',
       threshold_value_invite: 1,
-      threshold_type_delchan: 'count',
-      threshold_value_delchan: 3,
+      // the subject channels live outside the permanent categories, so the
+      // other-channels deletion threshold is the one that must apply
+      threshold_type_delchan_other: 'count',
+      threshold_value_delchan_other: 3,
     },
   });
   const actionCalls = [];
@@ -634,4 +636,94 @@ test('buildResultDm names the poll subject in every outcome', () => {
   assert.match(buildResultDm(poll, 'passed', 0, null), /#plans \(<#chan-9>\)/);
   assert.match(buildResultDm(poll, 'failed', 0, null), /<#chan-9>/);
   assert.match(buildResultDm(poll, 'vetoed', 3, null), /3 member/);
+});
+
+test('a deletion poll uses the threshold for where its channel lives at close time', async (t) => {
+  const splitConfig = {
+    poll_channel_id: 'chan-poll',
+    hard_no_weight: '-2',
+    threshold_type_delchan: 'count',
+    threshold_value_delchan: 5,
+    threshold_type_delchan_other: 'count',
+    threshold_value_delchan_other: 1,
+    permanent_category_id: 'cat-1',
+  };
+  const { db, ctx, guild, dms } = makeWorld(t, { config: splitConfig });
+  const original = guild.channels.fetch;
+  guild.channels.fetch = async (id) => {
+    if (id === 'chan-perm') return { id, parentId: 'cat-1' };
+    if (id === 'chan-free') return { id, parentId: null };
+    return original(id);
+  };
+
+  const permPoll = createPoll(db, {
+    guildId: 'g1',
+    type: 'delete_channel',
+    subject: 'chan-perm',
+    subjectName: 'perm',
+    initiatorId: 'u1',
+    channelId: 'chan-poll',
+    closesAt: 5_000,
+  });
+  setMessageId(db, permPoll.id, 'msg-1');
+  castVote(db, permPoll.id, 'u1', 'yes');
+  castVote(db, permPoll.id, 'u2', 'yes');
+  await closePollPipeline(ctx, permPoll);
+  assert.equal(
+    getPoll(db, permPoll.id).status,
+    'failed',
+    '2 points misses the permanent-category bar of 5'
+  );
+
+  const freePoll = createPoll(db, {
+    guildId: 'g1',
+    type: 'delete_channel',
+    subject: 'chan-free',
+    subjectName: 'free',
+    initiatorId: 'u1',
+    channelId: 'chan-poll',
+    closesAt: 5_000,
+  });
+  setMessageId(db, freePoll.id, 'msg-2');
+  castVote(db, freePoll.id, 'u1', 'yes');
+  castVote(db, freePoll.id, 'u2', 'yes');
+  await closePollPipeline(ctx, freePoll);
+  assert.equal(
+    getPoll(db, freePoll.id).status,
+    'passed',
+    'the same 2 points clears the other-channel bar of 1'
+  );
+  assert.match(dms.at(-1).content, /passed/);
+});
+
+test('a deletion poll whose channel vanished resolves with the other-channel threshold', async (t) => {
+  const splitConfig = {
+    poll_channel_id: 'chan-poll',
+    hard_no_weight: '-2',
+    threshold_type_delchan: 'count',
+    threshold_value_delchan: 5,
+    threshold_type_delchan_other: 'count',
+    threshold_value_delchan_other: 1,
+    permanent_category_id: 'cat-1',
+  };
+  const { db, ctx, guild } = makeWorld(t, { config: splitConfig });
+  const original = guild.channels.fetch;
+  guild.channels.fetch = async (id) => {
+    if (id === 'chan-vanished') throw new Error('Unknown Channel');
+    return original(id);
+  };
+
+  const poll = createPoll(db, {
+    guildId: 'g1',
+    type: 'delete_channel',
+    subject: 'chan-vanished',
+    subjectName: 'vanished',
+    initiatorId: 'u1',
+    channelId: 'chan-poll',
+    closesAt: 5_000,
+  });
+  setMessageId(db, poll.id, 'msg-1');
+  castVote(db, poll.id, 'u1', 'yes');
+  await closePollPipeline(ctx, poll);
+  assert.equal(getPoll(db, poll.id).status, 'passed', 'kind falls back to "other" when unknowable');
 });

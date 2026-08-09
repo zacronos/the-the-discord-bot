@@ -14,6 +14,8 @@ const FIELDS = new Set([
   'threshold_value_permchan',
   'threshold_type_delchan',
   'threshold_value_delchan',
+  'threshold_type_delchan_other',
+  'threshold_value_delchan_other',
   'permanent_category_id',
   'permanent_category_text_id',
   'permanent_category_voice_id',

@@ -94,7 +94,7 @@ settings and refuse to start until all four required ones have values.
 |---|---|---|
 | `poll-channel channel:<#channel>` | yes | The text channel polls are posted in |
 | `hard-no-weight weight:<-2 \| -3 \| -5 \| -10 \| veto>` | yes | How strongly a "Hard no" vote counts against a poll's total; `veto` means a single hard no fails the poll |
-| `pass-threshold value:<number> unit:<points \| percent> poll-type:<invite \| channel-permanence \| channel-deletion \| all>` | yes | The points total needed to pass: a literal points total, or a percent of the server's current (non-bot) members. `poll-type` (default: all) gives each poll type its own threshold. Channel-deletion polls stay disabled until a threshold resolves for them |
+| `pass-threshold value:<number> unit:<points \| percent> poll-type:<invite \| channel-permanence \| channel-deletion \| channel-deletion-other \| all>` | yes | The points total needed to pass: a literal points total, or a percent of the server's current (non-bot) members. `poll-type` (default: all) gives each poll type its own threshold; channel deletion has two — `channel-deletion` for channels in the configured permanent categories, `channel-deletion-other` for every other channel. Each deletion kind stays disabled until its threshold resolves |
 | `max-open-polls value:<1–100>` | no | How many polls may be open at the same time; default 10 |
 | `permanent-category category:<category> kind:<text \| voice>` | yes (text) | The category a channel moves into when a permanence poll passes. `kind` (default: text) sets separate categories for text and voice channels; until a voice category is set, voice channels can't be nominated |
 | `invite-channel channel:<#channel>` | no | Where invite links from passed invite polls land; unset = the server's system channel |
@@ -212,10 +212,14 @@ reports the pass with a note asking an admin to finish the move manually.
 Asks which channel should be deleted — the dropdown lists **every text
 and voice channel you can see**, except channels inside the
 `other-permanent-groups` categories, which are protected (text prefixed
-`#`, voice prefixed 🔊; Discord select menus cap the list at 25). This poll type has its
-own `pass-threshold` (set it with `poll-type:channel-deletion`, or cover
-everything with `poll-type:all`); until one is configured, its button
-explains what an admin needs to run. If the poll passes, the channel is
+`#`, voice prefixed 🔊; Discord select menus cap the list at 25). Deletion
+polls have **two** `pass-threshold`s: `poll-type:channel-deletion` covers
+channels inside the configured permanent categories, and
+`poll-type:channel-deletion-other` covers every other channel
+(`poll-type:all` sets both). Whichever applies is chosen by **where the
+channel is when the poll closes**. Channels of a kind whose threshold
+isn't configured aren't offered; until either kind is, the button explains
+what an admin needs to run. If the poll passes, the channel is
 **scheduled for deletion 24 hours later, rounded up to the next hour on
 the clock**, and the bot posts a warning in that channel with the exact
 day and time. The deletion happens at that hour — or at the next bot

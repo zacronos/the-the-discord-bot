@@ -7,11 +7,12 @@ import { closePoll, createPoll, listOpen, setMessageId } from '../store/polls.js
 import {
   allPermanentCategoryIds,
   channelKind,
+  deletionThresholdFor,
+  managedPermanentCategoryIds,
   maxOpenPolls,
   missingRequiredSettings,
   otherPermanentCategoryIds,
   permanentCategoryFor,
-  thresholdFor,
 } from './configCommands.js';
 import { durationSelectOptions, isAllowedDurationSeconds } from './durations.js';
 import { channelViewerCount, eligibleVoterCount, isPrivateChannel } from './eligibility.js';
@@ -24,6 +25,22 @@ const POLL_TYPES = { invite: 'invite', permchan: 'permanent_channel', delchan: '
 
 const replyEphemeral = (interaction, content) =>
   interaction.reply({ content, flags: MessageFlags.Ephemeral, allowedMentions: { parse: [] } });
+
+// Response delivery for the shared creation tail: the modal path replies
+// with a fresh ephemeral; the ack-button path edits the warning message in
+// place (and strips its button unless the payload carries new components).
+const ephemeralResponder = (interaction, payload) =>
+  interaction.reply({
+    flags: MessageFlags.Ephemeral,
+    allowedMentions: { parse: [] },
+    ...(typeof payload === 'string' ? { content: payload } : payload),
+  });
+const updateResponder = (interaction, payload) =>
+  interaction.update({
+    allowedMentions: { parse: [] },
+    components: [],
+    ...(typeof payload === 'string' ? { content: payload } : payload),
+  });
 
 // Kept intentionally short: the scoring rules and thresholds live on the
 // init message members press to get here.
@@ -60,17 +77,25 @@ function finalizeChannelOptions(options, what) {
 }
 
 // Deletion candidates: every text/voice channel the initiator can see.
-// Only the "other" permanent groups are protected and never offered.
-// Discord's channel select cannot filter by category, so the dropdown is a
-// bot-built string select of exactly these channels.
+// "Other" permanent groups are protected and never offered, and each
+// deletion kind (permanent-category vs other channels) is offered only
+// while its own threshold is configured — no dead-end options. Discord's
+// channel select cannot filter by category, so the dropdown is a bot-built
+// string select of exactly these channels.
 export function deletableChannelOptions(cfg, allChannels, member) {
   const protectedIds = new Set(otherPermanentCategoryIds(cfg));
+  const managedIds = managedPermanentCategoryIds(cfg);
+  const kindEnabled = {
+    permanent: Boolean(deletionThresholdFor(cfg, 'permanent')),
+    other: Boolean(deletionThresholdFor(cfg, 'other')),
+  };
   const options = [];
   for (const channel of allChannels.values()) {
     if (!channel) continue;
-    const kind = channel.type ?? 0;
-    if (kind !== 0 && kind !== 2) continue; // text and voice only
+    const type = channel.type ?? 0;
+    if (type !== 0 && type !== 2) continue; // text and voice only
     if (protectedIds.has(channel.parentId)) continue;
+    if (!kindEnabled[managedIds.has(channel.parentId) ? 'permanent' : 'other']) continue;
     if (!memberCanView(channel, member)) continue;
     options.push(channelOption(channel));
   }
@@ -183,10 +208,14 @@ export async function handleStartButton(ctx, interaction, [typePart]) {
       `⚠️ Only members with <@&${cfg.poll_starter_role_id}> can start polls on this server.`
     );
   }
-  if (typePart === 'delchan' && !thresholdFor(cfg, 'delete_channel')) {
+  if (
+    typePart === 'delchan' &&
+    !deletionThresholdFor(cfg, 'permanent') &&
+    !deletionThresholdFor(cfg, 'other')
+  ) {
     return replyEphemeral(
       interaction,
-      '⚠️ Channel-deletion polls aren\'t configured yet — an admin must run `/ttdb-config pass-threshold poll-type:channel-deletion` first.'
+      "⚠️ Channel-deletion polls aren't configured yet — an admin must set `/ttdb-config pass-threshold` for them first (poll-type:channel-deletion covers permanent-category channels; poll-type:channel-deletion-other covers the rest)."
     );
   }
   if (typePart === 'delchan' || typePart === 'permchan') {
@@ -247,12 +276,6 @@ export async function handleCreateModal(ctx, interaction, [typePart]) {
       return replyEphemeral(interaction, '⚠️ The name must be between 1 and 80 characters.');
     }
   } else if (type === 'delete_channel') {
-    if (!thresholdFor(cfg, 'delete_channel')) {
-      return replyEphemeral(
-        interaction,
-        '⚠️ Channel-deletion polls aren\'t configured yet — an admin must run `/ttdb-config pass-threshold poll-type:channel-deletion` first.'
-      );
-    }
     const channelId = first(values.channel);
     const channel = await interaction.guild.channels.fetch(channelId).catch(() => null);
     if (!channel) {
@@ -271,42 +294,91 @@ export async function handleCreateModal(ctx, interaction, [typePart]) {
         "⚠️ That channel is in a protected permanent group and can't be voted for deletion."
       );
     }
+    const isPermanentKind = managedPermanentCategoryIds(cfg).has(channel.parentId);
+    if (!deletionThresholdFor(cfg, isPermanentKind ? 'permanent' : 'other')) {
+      return replyEphemeral(
+        interaction,
+        isPermanentKind
+          ? "⚠️ Deletion polls for permanent-category channels aren't configured yet — an admin must set `/ttdb-config pass-threshold poll-type:channel-deletion` first."
+          : "⚠️ Deletion polls for channels outside the permanent categories aren't configured yet — an admin must set `/ttdb-config pass-threshold poll-type:channel-deletion-other` first."
+      );
+    }
     subject = channelId;
     subjectName = channel.name ?? null;
     nominatedChannel = channel;
   } else {
-    const channelId = first(values.channel);
-    const channel = await interaction.guild.channels.fetch(channelId).catch(() => null);
-    if (!channel) {
-      return replyEphemeral(interaction, '⚠️ I could not find that channel.');
-    }
-    if (!memberCanView(channel, interaction.member)) {
-      return replyEphemeral(interaction, '⚠️ You can only nominate channels you can see.');
-    }
-    const kind = channelKind(channel);
-    const categoryId = permanentCategoryFor(cfg, kind);
-    if (!categoryId) {
-      return replyEphemeral(
-        interaction,
-        kind === 'voice'
-          ? '⚠️ Voice channels can\'t be nominated yet — an admin must set `/ttdb-config permanent-category kind:voice` first.'
-          : '⚠️ No permanent category is configured — an admin must run `/ttdb-config permanent-category`.'
-      );
-    }
-    if (allPermanentCategoryIds(cfg).has(channel.parentId)) {
-      return replyEphemeral(interaction, `⚠️ <#${channelId}> is already in a permanent group.`);
-    }
-    subject = channelId;
+    const channel = await validatePermanenceTarget(ctx, interaction, cfg, first(values.channel));
+    if (!channel) return;
+    subject = channel.id;
     subjectName = channel.name ?? null;
     nominatedChannel = channel;
   }
 
+  return openPollAndConfirm(ctx, interaction, {
+    cfg,
+    type,
+    subject,
+    subjectName,
+    nominatedChannel,
+    durationSeconds,
+  });
+}
+
+// Permanence-nomination gates, shared by the modal submit and the ack
+// button (which must re-check everything — the world may have changed since
+// its warning was shown). Delivers the refusal and returns null when the
+// nomination is invalid.
+async function validatePermanenceTarget(ctx, interaction, cfg, channelId, respond = ephemeralResponder) {
+  const channel = await interaction.guild.channels.fetch(channelId).catch(() => null);
+  if (!channel) {
+    await respond(interaction, '⚠️ I could not find that channel.');
+    return null;
+  }
+  if (!memberCanView(channel, interaction.member)) {
+    await respond(interaction, '⚠️ You can only nominate channels you can see.');
+    return null;
+  }
+  const kind = channelKind(channel);
+  const categoryId = permanentCategoryFor(cfg, kind);
+  if (!categoryId) {
+    await respond(
+      interaction,
+      kind === 'voice'
+        ? '⚠️ Voice channels can\'t be nominated yet — an admin must set `/ttdb-config permanent-category kind:voice` first.'
+        : '⚠️ No permanent category is configured — an admin must run `/ttdb-config permanent-category`.'
+    );
+    return null;
+  }
+  if (allPermanentCategoryIds(cfg).has(channel.parentId)) {
+    await respond(interaction, `⚠️ <#${channelId}> is already in a permanent group.`);
+    return null;
+  }
+  return channel;
+}
+
+// Everything from the duplicate gate to the live-poll confirmation, shared
+// by the modal submit and the make-it-public acknowledgement button.
+async function openPollAndConfirm(
+  ctx,
+  interaction,
+  {
+    cfg,
+    type,
+    subject,
+    subjectName,
+    nominatedChannel,
+    durationSeconds,
+    acknowledgedPublic = false,
+    respond = ephemeralResponder,
+  }
+) {
+  const openPolls = listOpen(ctx.db, interaction.guildId);
   const key = duplicateKey(type, subject);
   const duplicate = openPolls.find(
     (poll) => poll.type === type && duplicateKey(poll.type, poll.subject) === key
   );
   if (duplicate) {
-    return replyEphemeral(
+    return respond(
       interaction,
       '⚠️ There is already an open poll about this — please wait for it to close.'
     );
@@ -317,11 +389,38 @@ export async function handleCreateModal(ctx, interaction, [typePart]) {
   // chat is the channel itself), so the channel's name never reaches
   // members who can't already see it.
   const isPrivate = nominatedChannel ? isPrivateChannel(interaction.guild, nominatedChannel) : false;
+
+  // Permanence makes a private channel public (the promotion lifts its view
+  // deny) — the initiator must acknowledge that before the poll opens.
+  if (type === 'permanent_channel' && isPrivate && !acknowledgedPublic) {
+    const warning = await respond(interaction, {
+      content: [
+        `⚠️ <#${subject}> is a **private channel**. If this poll passes, making it permanent will also make it **public** — everyone on the server will be able to see it and its full message history.`,
+        'Press the button to acknowledge that and start the poll, or dismiss this message to cancel.',
+      ].join('\n'),
+      components: [
+        {
+          type: 1,
+          components: [
+            {
+              type: 2,
+              style: 4,
+              label: 'I understand — the channel will become public',
+              custom_id: buildId('pubok', subject, durationSeconds),
+            },
+          ],
+        },
+      ],
+    });
+    scheduleEphemeralCleanup(ctx, interaction, { now: ctx.now?.() ?? Date.now() });
+    return warning;
+  }
+
   let destination = isPrivate ? nominatedChannel : null;
   if (!destination) {
     destination = await interaction.guild.channels.fetch(cfg.poll_channel_id).catch(() => null);
     if (!destination) {
-      return replyEphemeral(
+      return respond(
         interaction,
         '⚠️ The configured poll channel no longer exists — an admin needs to run `/ttdb-config poll-channel`.'
       );
@@ -349,7 +448,7 @@ export async function handleCreateModal(ctx, interaction, [typePart]) {
     message = await destination.send(renderPollMessage(poll, { responded: 0, eligible }));
   } catch {
     closePoll(ctx.db, poll.id, 'aborted', null, now);
-    return replyEphemeral(
+    return respond(
       interaction,
       `⚠️ I couldn't post in <#${destination.id}> — for a private channel, make sure I have access and Send Messages there, then try again.`
     );
@@ -357,11 +456,49 @@ export async function handleCreateModal(ctx, interaction, [typePart]) {
   setMessageId(ctx.db, poll.id, message.id);
   poll.message_id = message.id;
 
-  await replyEphemeral(
+  await respond(
     interaction,
     `✅ Your poll is live: **${pollTitle(poll)}**\nhttps://discord.com/channels/${interaction.guildId}/${destination.id}/${message.id}\nYou'll get the result by DM when it closes.`
   );
   // The confirmation cleans itself up just inside the interaction-token
   // window — persisted, so a bot restart cannot lose the timer.
   scheduleEphemeralCleanup(ctx, interaction, { now: ctx.now?.() ?? Date.now() });
+}
+
+// The make-it-public acknowledgement button. Its customId carries the
+// nominated channel and duration; the presser is necessarily the warned
+// initiator (the warning is ephemeral to them).
+export async function handleConfirmPublicButton(ctx, interaction, [channelId, durationRaw]) {
+  const cfg = configGate(ctx, interaction);
+  if (!cfg) return;
+  if (cfg.poll_starter_role_id && !interaction.member?.roles?.cache?.has(cfg.poll_starter_role_id)) {
+    return replyEphemeral(
+      interaction,
+      `⚠️ Only members with <@&${cfg.poll_starter_role_id}> can start polls on this server.`
+    );
+  }
+  const durationSeconds = Number(durationRaw);
+  if (!isAllowedDurationSeconds(durationSeconds, ctx.env?.testMode)) {
+    return replyEphemeral(interaction, '⚠️ Please pick a poll duration from the list.');
+  }
+  const openPolls = listOpen(ctx.db, interaction.guildId);
+  const cap = maxOpenPolls(cfg);
+  if (openPolls.length >= cap) {
+    return updateResponder(
+      interaction,
+      `⚠️ There are already ${openPolls.length} open poll(s) — this server allows at most ${cap} at a time. Please wait for one to close.`
+    );
+  }
+  const channel = await validatePermanenceTarget(ctx, interaction, cfg, channelId, updateResponder);
+  if (!channel) return;
+  return openPollAndConfirm(ctx, interaction, {
+    cfg,
+    type: 'permanent_channel',
+    subject: channel.id,
+    subjectName: channel.name ?? null,
+    nominatedChannel: channel,
+    durationSeconds,
+    acknowledgedPublic: true,
+    respond: updateResponder,
+  });
 }

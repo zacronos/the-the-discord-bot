@@ -119,7 +119,12 @@ test('the init message ends with the per-poll-type thresholds and tracks changes
   assert.match(description, /__Current pass thresholds__\nThe point total at poll closing must be at least:/);
   assert.match(description, /• Invite polls: _3 points total_/);
   assert.match(description, /• Channel-permanence polls: _3 points total_/);
-  assert.match(description, /• Channel-deletion polls: _3 points total_/, 'legacy threshold covers the third type');
+  assert.match(
+    description,
+    /• Channel-deletion polls \(permanent categories\): _3 points total_/,
+    'legacy threshold covers both deletion kinds'
+  );
+  assert.match(description, /• Channel-deletion polls \(other channels\): _3 points total_/);
 
   const changed = buildInitMessage({
     ...FULL_CONFIG,
@@ -134,7 +139,7 @@ test('the init message ends with the per-poll-type thresholds and tracks changes
   );
 });
 
-test('the init message marks channel-deletion polls as not set until their threshold resolves', () => {
+test('the init message marks each channel-deletion kind as not set until its threshold resolves', () => {
   const cfg = {
     poll_channel_id: 'chan-1',
     hard_no_weight: 'veto',
@@ -146,16 +151,32 @@ test('the init message marks channel-deletion polls as not set until their thres
   };
   const before = buildInitMessage(cfg);
   const description = before.embeds[0].data.description;
-  assert.match(description, /• Channel-deletion polls: _not set_/);
+  assert.match(description, /• Channel-deletion polls \(permanent categories\): _not set_/);
+  assert.match(description, /• Channel-deletion polls \(other channels\): _not set_/);
   assert.doesNotMatch(description, /undefined|NaN|null/);
 
-  const after = buildInitMessage({ ...cfg, threshold_type_delchan: 'count', threshold_value_delchan: 4 });
-  assert.match(after.embeds[0].data.description, /• Channel-deletion polls: _4 points total_/);
+  const half = buildInitMessage({ ...cfg, threshold_type_delchan: 'count', threshold_value_delchan: 4 });
+  assert.match(half.embeds[0].data.description, /• Channel-deletion polls \(permanent categories\): _4 points total_/);
+  assert.match(
+    half.embeds[0].data.description,
+    /• Channel-deletion polls \(other channels\): _not set_/,
+    'the two kinds resolve independently'
+  );
   assert.notEqual(
     before.embeds[0].data.footer.text,
-    after.embeds[0].data.footer.text,
-    'setting the threshold re-hashes, so a posted message gets edited'
+    half.embeds[0].data.footer.text,
+    'setting a threshold re-hashes, so a posted message gets edited'
   );
+
+  const full = buildInitMessage({
+    ...cfg,
+    threshold_type_delchan: 'count',
+    threshold_value_delchan: 4,
+    threshold_type_delchan_other: 'count',
+    threshold_value_delchan_other: 5,
+  });
+  assert.match(full.embeds[0].data.description, /• Channel-deletion polls \(other channels\): _5 points total_/);
+  assert.notEqual(half.embeds[0].data.footer.text, full.embeds[0].data.footer.text);
 });
 
 test('buildInitMessage carries the marker footer with a content hash, and both start buttons', () => {

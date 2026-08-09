@@ -4,6 +4,7 @@ import { MessageFlags } from 'discord.js';
 import {
   buildCreateModal,
   extractModalValues,
+  handleConfirmPublicButton,
   handleCreateModal,
   handleStartButton,
 } from '../../src/features/pollCreate.js';
@@ -81,12 +82,17 @@ function fakeInteraction({ guild, hasRole = true, values = {} } = {}) {
     })),
     showModal: async (payload) => interaction.shown.push(payload),
     reply: async (payload) => interaction.replies.push(payload),
+    updates: [],
+    update: async (payload) => interaction.updates.push(payload),
     deleteReply: async () => {
       interaction.deletedReplies += 1;
     },
   };
   return interaction;
 }
+
+// The ack button the make-it-public warning must carry.
+const ackButtonOf = (reply) => reply.components?.[0]?.components?.[0];
 
 test('buildCreateModal (invite) carries explanation, name input, and duration select with default', () => {
   const modal = buildCreateModal('invite', { ...FULL_CONFIG }, false);
@@ -264,7 +270,7 @@ test('permchan modal submit stores the channel id and refuses channels already i
   assert.equal(poll.subject, 'chan-target');
 });
 
-test('channel-deletion polls need their own threshold before the button works', async (t) => {
+test('channel-deletion polls need a threshold, and each kind unlocks its own channels', async (t) => {
   const db = tempDb(t);
   // per-type thresholds only — nothing for channel-deletion, no legacy fallback
   setConfig(db, 'g1', {
@@ -282,17 +288,89 @@ test('channel-deletion polls need their own threshold before the button works', 
   assert.match(refused.replies[0].content, /poll-type:channel-deletion/);
 
   setConfig(db, 'g1', { threshold_type_delchan: 'count', threshold_value_delchan: 2 });
-  const allowed = fakeInteraction({ guild: fakeGuild() });
-  await handleStartButton({ db }, allowed, ['delchan']);
-  assert.equal(allowed.shown.length, 1);
-  assert.equal(allowed.shown[0].custom_id, 'ttdb:create:delchan');
-  const select = allowed.shown[0].components.find((c) => c.component?.custom_id === 'channel');
-  assert.equal(select.component.type, 3, 'a bot-built option list, not a raw channel select');
+  const permanentOnly = fakeInteraction({ guild: fakeGuild() });
+  await handleStartButton({ db }, permanentOnly, ['delchan']);
+  assert.equal(permanentOnly.shown.length, 1);
+  assert.equal(permanentOnly.shown[0].custom_id, 'ttdb:create:delchan');
+  const permanentSelect = permanentOnly.shown[0].components.find((c) => c.component?.custom_id === 'channel');
+  assert.equal(permanentSelect.component.type, 3, 'a bot-built option list, not a raw channel select');
+  assert.deepEqual(
+    permanentSelect.component.options.map((o) => o.value),
+    ['chan-owned'],
+    'only permanent-category channels until the other-channel threshold exists'
+  );
+
+  setConfig(db, 'g1', { threshold_type_delchan_other: 'count', threshold_value_delchan_other: 3 });
+  const both = fakeInteraction({ guild: fakeGuild() });
+  await handleStartButton({ db }, both, ['delchan']);
+  const bothSelect = both.shown[0].components.find((c) => c.component?.custom_id === 'channel');
+  assert.deepEqual(
+    bothSelect.component.options.map((o) => o.value),
+    ['chan-other', 'chan-owned', 'chan-poll', 'chan-target', 'chan-voice', 'chan-voice-owned'],
+    'both thresholds set: every visible text/voice channel is offered'
+  );
+});
+
+test('only the other-channel threshold set: permanent-category channels are not offered', async (t) => {
+  const db = tempDb(t);
+  setConfig(db, 'g1', {
+    poll_channel_id: 'chan-poll',
+    hard_no_weight: 'veto',
+    threshold_type_invite: 'count',
+    threshold_value_invite: 1,
+    threshold_type_permchan: 'count',
+    threshold_value_permchan: 1,
+    permanent_category_id: 'cat-1',
+    threshold_type_delchan_other: 'count',
+    threshold_value_delchan_other: 3,
+  });
+  const interaction = fakeInteraction({ guild: fakeGuild() });
+  await handleStartButton({ db }, interaction, ['delchan']);
+  const select = interaction.shown[0].components.find((c) => c.component?.custom_id === 'channel');
   assert.deepEqual(
     select.component.options.map((o) => o.value),
-    ['chan-other', 'chan-owned', 'chan-poll', 'chan-target', 'chan-voice', 'chan-voice-owned'],
-    'every visible text/voice channel is offered (no other permanent groups configured)'
+    ['chan-other', 'chan-poll', 'chan-target', 'chan-voice', 'chan-voice-owned'],
+    'the permanent-category channel stays locked behind its own threshold'
   );
+});
+
+test('a forged submission for a deletion kind without a threshold is refused', async (t) => {
+  clearEligibilityCache();
+  const db = tempDb(t);
+  setConfig(db, 'g1', {
+    poll_channel_id: 'chan-poll',
+    hard_no_weight: 'veto',
+    threshold_type_invite: 'count',
+    threshold_value_invite: 1,
+    threshold_type_permchan: 'count',
+    threshold_value_permchan: 1,
+    permanent_category_id: 'cat-1',
+    threshold_type_delchan: 'count',
+    threshold_value_delchan: 2,
+  });
+  // chan-target is an "other" channel; only the permanent-category threshold exists.
+  const interaction = fakeInteraction({
+    guild: fakeGuild(),
+    values: { channel: ['chan-target'], duration: ['604800'] },
+  });
+  await handleCreateModal({ db }, interaction, ['delchan']);
+  assert.equal(listOpen(db, 'g1').length, 0);
+  assert.match(interaction.replies[0].content, /outside the permanent categories/i);
+
+  // And the mirror case: permanent-category channel with only the other threshold.
+  setConfig(db, 'g1', {
+    threshold_type_delchan: null,
+    threshold_value_delchan: null,
+    threshold_type_delchan_other: 'count',
+    threshold_value_delchan_other: 3,
+  });
+  const mirrored = fakeInteraction({
+    guild: fakeGuild(),
+    values: { channel: ['chan-owned'], duration: ['604800'] },
+  });
+  await handleCreateModal({ db }, mirrored, ['delchan']);
+  assert.equal(listOpen(db, 'g1').length, 0);
+  assert.match(mirrored.replies[0].content, /permanent-category channels/i);
 });
 
 test('the deletion dropdown lists every visible text and voice channel outside protected groups', async (t) => {
@@ -475,12 +553,12 @@ function makePrivate(channel) {
   return channel;
 }
 
-test('a poll about a private channel is posted inside that channel, not the poll channel', async (t) => {
+test('nominating a private channel for permanence warns it will become public, and creates no poll yet', async (t) => {
   clearEligibilityCache();
   const db = tempDb(t);
   setConfig(db, 'g1', FULL_CONFIG);
   const guild = fakeGuild();
-  const target = makePrivate(await guild.channels.fetch('chan-target'));
+  makePrivate(await guild.channels.fetch('chan-target'));
 
   const interaction = fakeInteraction({
     guild,
@@ -488,12 +566,57 @@ test('a poll about a private channel is posted inside that channel, not the poll
   });
   await handleCreateModal({ db, now: () => 0 }, interaction, ['permchan']);
 
+  assert.equal(listOpen(db, 'g1').length, 0, 'no poll until the initiator acknowledges');
+  const warning = interaction.replies[0];
+  assert.match(warning.content, /private channel/i);
+  assert.match(warning.content, /make it \*\*public\*\*|become \*\*public\*\*/i);
+  const button = ackButtonOf(warning);
+  assert.equal(button.custom_id, 'ttdb:pubok:chan-target:604800', 'the ack button carries channel and duration');
+});
+
+test('the acknowledgement button creates the poll inside the private channel', async (t) => {
+  clearEligibilityCache();
+  const db = tempDb(t);
+  setConfig(db, 'g1', FULL_CONFIG);
+  const guild = fakeGuild();
+  const target = makePrivate(await guild.channels.fetch('chan-target'));
+
+  const interaction = fakeInteraction({ guild });
+  await handleConfirmPublicButton({ db, now: () => 0 }, interaction, ['chan-target', '604800']);
+
   const [poll] = listOpen(db, 'g1');
+  assert.equal(poll.type, 'permanent_channel');
   assert.equal(poll.is_private, 1);
   assert.equal(poll.channel_id, 'chan-target', 'the poll lives in the private channel');
   assert.equal(target.sent.length, 1, 'posted into the nominated channel');
   assert.equal(guild.pollChannel.sent.length, 0, 'nothing leaks into the public poll channel');
-  assert.match(interaction.replies[0].content, /channels\/g1\/chan-target\//, 'the link points there too');
+  const confirmation = interaction.updates[0];
+  assert.match(confirmation.content, /channels\/g1\/chan-target\//, 'the warning morphs into the confirmation');
+  assert.deepEqual(confirmation.components, [], 'the ack button is removed');
+  assert.equal(interaction.replies.length, 0, 'no second ephemeral is created');
+});
+
+test('a public channel needs no acknowledgement, and the ack button re-validates', async (t) => {
+  clearEligibilityCache();
+  const db = tempDb(t);
+  setConfig(db, 'g1', FULL_CONFIG);
+
+  // Public channel: the modal submit creates the poll directly, as before.
+  const direct = fakeInteraction({
+    guild: fakeGuild(),
+    values: { channel: ['chan-target'], duration: ['604800'] },
+  });
+  await handleCreateModal({ db, now: () => 0 }, direct, ['permchan']);
+  assert.equal(listOpen(db, 'g1').length, 1, 'no warning detour for public channels');
+  assert.equal(direct.updates.length, 0);
+
+  // A stale ack button for a channel that meanwhile became permanent is refused.
+  const staleGuild = fakeGuild();
+  const owned = makePrivate(await staleGuild.channels.fetch('chan-owned')); // parentId cat-1
+  const stale = fakeInteraction({ guild: staleGuild });
+  await handleConfirmPublicButton({ db, now: () => 0 }, stale, ['chan-owned', '604800']);
+  assert.equal(owned.sent.length, 0);
+  assert.match(stale.updates[0].content, /already in a permanent group/i);
 });
 
 test('a private deletion poll also stays inside the channel', async (t) => {
@@ -527,14 +650,11 @@ test('when the bot cannot post into the private channel, creation fails cleanly'
     throw new Error('Missing Access');
   };
 
-  const interaction = fakeInteraction({
-    guild,
-    values: { channel: ['chan-target'], duration: ['604800'] },
-  });
-  await handleCreateModal({ db, now: () => 0 }, interaction, ['permchan']);
+  const interaction = fakeInteraction({ guild });
+  await handleConfirmPublicButton({ db, now: () => 0 }, interaction, ['chan-target', '604800']);
 
   assert.equal(listOpen(db, 'g1').length, 0, 'no open poll is left behind');
-  assert.match(interaction.replies[0].content, /post in|access/i);
+  assert.match(interaction.updates[0].content, /post in|access/i);
 });
 
 test('the deletion dropdown caps at the 25-option component limit', async (t) => {
