@@ -5,7 +5,10 @@
 // content pings @everyone intentionally and allows nothing else.
 import { ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder } from 'discord.js';
 import { buildId } from '../discord/customId.js';
+import { getConfig } from '../store/guildConfig.js';
+import { resolvePollThreshold } from '../polls/threshold.js';
 import { countVoters } from '../store/votes.js';
+import { formatThreshold, hardNoDescription } from './configCommands.js';
 import { pollPopulation } from './eligibility.js';
 
 export function pollTitle(poll) {
@@ -14,7 +17,20 @@ export function pollTitle(poll) {
   return `Should <#${poll.subject}> be made permanent?`;
 }
 
-export function renderPollMessage(poll, { responded = 0, eligible = null } = {}) {
+// The scoring a voter is signing up for, kept current by every refresh so
+// a mid-poll config change is visible instead of silent. Resolved with the
+// same logic the close pipeline uses.
+export async function pollRulesFor(ctx, guild, poll) {
+  const cfg = getConfig(ctx.db, guild.id) ?? {};
+  const threshold = await resolvePollThreshold(guild, cfg, poll);
+  const votesLine = `Yes **+1** · No **−1** · Abstain **0** · Hard no ${hardNoDescription(cfg)}`;
+  const passLine = threshold
+    ? `Passes when the point total at close is at least **${formatThreshold(threshold)}**.`
+    : "Can't pass yet — this poll type's pass threshold is not configured.";
+  return `${votesLine}\n${passLine}`;
+}
+
+export function renderPollMessage(poll, { responded = 0, eligible = null, rules = null } = {}) {
   const awaiting = eligible == null ? null : Math.max(0, eligible - responded);
   const closesSec = Math.floor(poll.closes_at / 1000);
   const paragraphs = [
@@ -39,6 +55,7 @@ export function renderPollMessage(poll, { responded = 0, eligible = null } = {})
       { name: 'Closes', value: `<t:${closesSec}:F> (<t:${closesSec}:R>)`, inline: true }
     )
     .setFooter({ text: `ttdb-poll-${poll.id}` });
+  if (rules) embed.addFields({ name: 'Pass rules', value: rules });
   const row = new ActionRowBuilder().addComponents(
     new ButtonBuilder()
       .setCustomId(buildId('vote', poll.id))
@@ -62,7 +79,8 @@ export async function refreshPollCounts(ctx, guild, poll, { force = false, now =
   const message = await channel.messages.fetch(poll.message_id);
   const responded = countVoters(ctx.db, poll.id);
   const eligible = await pollPopulation(ctx.db, guild, poll).catch(() => null);
-  await message.edit({ embeds: renderPollMessage(poll, { responded, eligible }).embeds });
+  const rules = await pollRulesFor(ctx, guild, poll).catch(() => null);
+  await message.edit({ embeds: renderPollMessage(poll, { responded, eligible, rules }).embeds });
   return true;
 }
 

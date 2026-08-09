@@ -285,6 +285,8 @@ Native Windows Task Scheduler logon-trigger task: no third-party binary (NSSM) o
 
 ## Post-plan change log
 
+- [X] 2026-08-09 (owner request, assessment item 4): every poll message carries a "Pass rules" field — vote weights (from `hardNoDescription`) plus the threshold that applies to *this* poll, resolved by the same channel-aware logic the close pipeline uses (extracted to `src/polls/threshold.js`). Refreshes re-render it, so mid-poll config changes are visible on the message instead of silent.
+
 - [X] 2026-08-09 (owner request, assessment gap 1): the configured poll channel and invite channel are excluded from deletion nominations (dropdown and submit validation) — the bot must not be voted into deleting its own operating surface.
 
 - [X] 2026-08-09 (owner request, assessment gap 2): deletion-lifecycle guards. A passed permanence poll cancels the channel's pending scheduled deletion (noted in the result DM), and the deletion sweep re-checks at execution time — a channel inside any permanent group is spared and its schedule dropped. Decided **against** refusing concurrent cross-type polls on one channel (owner): a perpetually renewed permanence poll could otherwise filibuster deletion votes.

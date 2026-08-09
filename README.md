@@ -165,8 +165,10 @@ channels the initiating member can actually see.
 ## Voting and privacy
 
 A new poll pings `@everyone`. Publicly, the poll shows only who started it,
-what it asks, how many people have voted, how many haven't, and when it
-closes — never who voted or how.
+what it asks, how many people have voted, how many haven't, when it
+closes, and the pass rules it will be judged by (vote weights and the
+applicable threshold — kept current on the message if an admin changes
+them mid-poll) — never who voted or how.
 
 Press **Vote / change my vote** to get a private ballot only you can see,
 showing the poll question and four options: *Yes!*, *No, I'd rather not…*,

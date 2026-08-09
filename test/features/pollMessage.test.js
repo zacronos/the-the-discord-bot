@@ -2,10 +2,12 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   clearRefreshThrottle,
+  pollRulesFor,
   pollTitle,
   refreshPollCounts,
   renderPollMessage,
 } from '../../src/features/pollMessage.js';
+import { setConfig } from '../../src/store/guildConfig.js';
 import { createPoll, setMessageId } from '../../src/store/polls.js';
 import { castVote } from '../../src/store/votes.js';
 import { clearEligibilityCache } from '../../src/features/eligibility.js';
@@ -95,4 +97,87 @@ test('a private permanence poll warns the channel will become public; other poll
     /become public/i,
     'deletion polls never carry the permanence warning'
   );
+});
+
+test('renderPollMessage includes a Pass rules field only when rules are provided', () => {
+  const withRules = renderPollMessage(basePoll, {
+    responded: 0,
+    eligible: 4,
+    rules: 'Yes **+1** — passes at 3',
+  });
+  const field = withRules.embeds[0].data.fields.find((f) => f.name === 'Pass rules');
+  assert.equal(field.value, 'Yes **+1** — passes at 3');
+
+  const without = renderPollMessage(basePoll, { responded: 0, eligible: 4 });
+  assert.equal(without.embeds[0].data.fields.find((f) => f.name === 'Pass rules'), undefined);
+});
+
+test('pollRulesFor formats the vote weights and the threshold that applies to this poll', async (t) => {
+  const db = tempDb(t);
+  setConfig(db, 'g1', {
+    hard_no_weight: '-3',
+    threshold_type_invite: 'count',
+    threshold_value_invite: 5,
+    permanent_category_id: 'cat-1',
+    threshold_type_delchan: 'count',
+    threshold_value_delchan: 9,
+    threshold_type_delchan_other: 'percent',
+    threshold_value_delchan_other: 50,
+  });
+  const guild = {
+    id: 'g1',
+    channels: { fetch: async (id) => ({ id, parentId: id === 'chan-perm' ? 'cat-1' : null }) },
+  };
+
+  const invite = await pollRulesFor({ db }, guild, { type: 'invite', subject: 'Ada' });
+  assert.match(invite, /Yes \*\*\+1\*\* · No \*\*−1\*\* · Abstain \*\*0\*\* · Hard no \*\*−3\*\*/);
+  assert.match(invite, /at least \*\*5 points total\*\*/);
+
+  const permDeletion = await pollRulesFor({ db }, guild, { type: 'delete_channel', subject: 'chan-perm' });
+  assert.match(permDeletion, /at least \*\*9 points total\*\*/, 'permanent-category deletion bar');
+
+  const otherDeletion = await pollRulesFor({ db }, guild, { type: 'delete_channel', subject: 'chan-free' });
+  assert.match(otherDeletion, /at least \*\*50% of current members\*\*/, 'other-channel deletion bar');
+});
+
+test('pollRulesFor speaks veto, and says when the threshold is unconfigured', async (t) => {
+  const db = tempDb(t);
+  setConfig(db, 'g1', { hard_no_weight: 'veto' });
+  const guild = { id: 'g1', channels: { fetch: async () => ({ parentId: null }) } };
+  const rules = await pollRulesFor({ db }, guild, { type: 'invite', subject: 'Ada' });
+  assert.match(rules, /vetoes the poll/);
+  assert.match(rules, /not configured/i);
+});
+
+test('refreshPollCounts keeps the pass rules current with config changes', async (t) => {
+  clearRefreshThrottle();
+  clearEligibilityCache();
+  const db = tempDb(t);
+  setConfig(db, 'g1', { hard_no_weight: '-2', threshold_type_invite: 'count', threshold_value_invite: 3 });
+  const poll = createPoll(db, {
+    guildId: 'g1',
+    type: 'invite',
+    subject: 'Ada',
+    initiatorId: 'u1',
+    channelId: 'chan-1',
+    closesAt: 3_600_000,
+  });
+  setMessageId(db, poll.id, 'msg-1');
+
+  const edits = [];
+  const message = { edit: async (payload) => edits.push(payload) };
+  const channel = { id: 'chan-1', messages: { fetch: async () => message } };
+  const guild = {
+    id: 'g1',
+    channels: { fetch: async () => channel },
+    members: { fetch: async () => new Map([['u1', { user: { bot: false } }]]) },
+  };
+
+  await refreshPollCounts({ db }, guild, poll);
+  const rulesOf = (edit) => edit.embeds[0].data.fields.find((f) => f.name === 'Pass rules').value;
+  assert.match(rulesOf(edits[0]), /at least \*\*3 points total\*\*/);
+
+  setConfig(db, 'g1', { threshold_value_invite: 8 });
+  await refreshPollCounts({ db }, guild, poll, { force: true });
+  assert.match(rulesOf(edits[1]), /at least \*\*8 points total\*\*/, 'mid-poll changes surface on refresh');
 });

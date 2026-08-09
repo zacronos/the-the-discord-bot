@@ -17,7 +17,7 @@ import {
 import { durationSelectOptions, isAllowedDurationSeconds } from './durations.js';
 import { channelViewerCount, eligibleVoterCount, isPrivateChannel } from './eligibility.js';
 import { scheduleEphemeralCleanup } from './ephemeralCleanup.js';
-import { pollTitle, renderPollMessage } from './pollMessage.js';
+import { pollRulesFor, pollTitle, renderPollMessage } from './pollMessage.js';
 import { roundUpToNextHour } from '../util/time.js';
 
 // customId segment → poll type stored in the database
@@ -456,9 +456,10 @@ async function openPollAndConfirm(
   const eligible = isPrivate
     ? await channelViewerCount(interaction.guild, nominatedChannel).catch(() => null)
     : await eligibleVoterCount(ctx.db, interaction.guild).catch(() => null);
+  const rules = await pollRulesFor(ctx, interaction.guild, poll).catch(() => null);
   let message;
   try {
-    message = await destination.send(renderPollMessage(poll, { responded: 0, eligible }));
+    message = await destination.send(renderPollMessage(poll, { responded: 0, eligible, rules }));
   } catch {
     closePoll(ctx.db, poll.id, 'aborted', null, now);
     return respond(

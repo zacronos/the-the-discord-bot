@@ -881,3 +881,20 @@ test('permanence duplicates are refused, but subjects do not collide across poll
   await handleCreateModal({ db: db2, now: () => 0 }, crossType, ['permchan']);
   assert.equal(listOpen(db2, 'g1').length, 2, 'same subject under a different type is allowed');
 });
+
+test('a new poll message documents its pass rules', async (t) => {
+  clearEligibilityCache();
+  const db = tempDb(t);
+  setConfig(db, 'g1', FULL_CONFIG); // veto weight + legacy shared threshold of 3
+  const guild = fakeGuild();
+  const interaction = fakeInteraction({
+    guild,
+    values: { name: 'Ada', duration: ['604800'] },
+  });
+  await handleCreateModal({ db, now: () => 0 }, interaction, ['invite']);
+
+  const payload = guild.pollChannel.sent[0];
+  const rules = payload.embeds[0].data.fields.find((f) => f.name === 'Pass rules');
+  assert.match(rules.value, /vetoes the poll/);
+  assert.match(rules.value, /at least \*\*3 points total\*\*/);
+});
