@@ -6,6 +6,7 @@ import { createClient } from './discord/client.js';
 import { createRouter } from './discord/interactionRouter.js';
 import { handleCastButton, handleVoteButton } from './features/ballot.js';
 import { handleConfigCommand } from './features/configCommands.js';
+import { handleDeletionsCommand } from './features/deletionsCommand.js';
 import { ensureInitMessage } from './features/initMessage.js';
 import { deleteChannelAction } from './features/actions/deleteChannel.js';
 import { inviteAction } from './features/actions/invite.js';
@@ -46,6 +47,7 @@ ctx.ensureProfile = () => ensureProfile(ctx);
 
 const router = createRouter(ctx);
 router.command('ttdb-config', handleConfigCommand);
+router.command('ttdb-deletions', handleDeletionsCommand);
 router.component('start', handleStartButton);
 router.component('pubok', handleConfirmPublicButton);
 router.component('vote', handleVoteButton);

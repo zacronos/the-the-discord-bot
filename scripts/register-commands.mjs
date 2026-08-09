@@ -6,6 +6,7 @@
 import { REST, Routes } from 'discord.js';
 import { loadEnv } from '../src/env.js';
 import { configCommandDefinition } from '../src/features/configCommands.js';
+import { deletionsCommandDefinition } from '../src/features/deletionsCommand.js';
 import { closeHttpAgent, makeScriptLog } from './script-log.mjs';
 
 const { say, finish, scrub, setSecret } = makeScriptLog('register-commands');
@@ -29,7 +30,7 @@ const HINTS = [
   ],
 ];
 
-const COMMANDS = [configCommandDefinition];
+const COMMANDS = [configCommandDefinition, deletionsCommandDefinition];
 
 try {
   const env = loadEnv();

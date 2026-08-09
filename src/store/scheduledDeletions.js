@@ -13,6 +13,16 @@ export function listDueDeletions(db, now) {
   return db.prepare('SELECT * FROM scheduled_deletions WHERE delete_at <= ? ORDER BY delete_at').all(now);
 }
 
+export function listScheduledDeletions(db, guildId) {
+  return db
+    .prepare('SELECT * FROM scheduled_deletions WHERE guild_id = ? ORDER BY delete_at, channel_id')
+    .all(guildId);
+}
+
+export function getScheduledDeletion(db, channelId) {
+  return db.prepare('SELECT * FROM scheduled_deletions WHERE channel_id = ?').get(channelId);
+}
+
 export function removeScheduledDeletion(db, channelId) {
   return db.prepare('DELETE FROM scheduled_deletions WHERE channel_id = ?').run(channelId).changes;
 }

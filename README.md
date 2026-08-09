@@ -235,6 +235,13 @@ the clock**, and the bot posts a warning in that channel with the exact
 day and time. The deletion happens at that hour — or at the next bot
 startup, if it was offline when the time arrived.
 
+During that window, members with **Manage Server** can review and stop
+pending deletions: `/ttdb-deletions list` shows every scheduled deletion
+with its time and originating poll, and
+`/ttdb-deletions cancel channel:<#channel>` calls one off — the bot posts
+a notice in the channel saying the deletion was canceled and naming who
+canceled it.
+
 ### Private channels
 
 When the nominated channel is **private** (hidden from `@everyone`), the

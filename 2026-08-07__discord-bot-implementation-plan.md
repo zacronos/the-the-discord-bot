@@ -285,6 +285,8 @@ Native Windows Task Scheduler logon-trigger task: no third-party binary (NSSM) o
 
 ## Post-plan change log
 
+- [X] 2026-08-09 (owner request): `/ttdb-deletions` (Manage Server, guild-only) — `list` shows this server's pending scheduled deletions (channel, `<t:…:F>`/`<t:…:R>` time, originating poll); `cancel channel:<…>` removes the schedule and posts an in-channel notice naming the canceler (mention rendered, never pinged). Cancel verifies the row belongs to the invoking guild; a failed notice never blocks the cancel. New store helpers `listScheduledDeletions`/`getScheduledDeletion`.
+
 - [X] 2026-08-09 (owner request): private→permanent acknowledgement flow. Nominating a private channel for permanence no longer opens the poll directly: the initiator gets an ephemeral warning that passing will make the channel **public**, with an acknowledgement button (channel + duration ride in the `pubok` customId; everything is re-validated on press, and the warning morphs in place into the live-poll confirmation). The poll message itself warns voters the channel will become public. On pass, the action lifts the `@everyone` ViewChannel deny *before* the move + category sync, so going public never depends on what the category's overwrites happen to be.
 
 - [X] 2026-08-09 (owner request): regression tests pinning the promotion permission story — the category sync (`lockPermissions: true`) replaces the channel's overwrites, which strips the creator-only deletion lock, and the registry's daily sweep never re-adds a creator grant to a permanent-category channel. No behavior change; the invariant can no longer regress silently.
