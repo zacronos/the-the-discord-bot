@@ -202,10 +202,20 @@ configured permanent categories and every `other-permanent-groups`
 category are excluded; Discord select menus cap the list at 25). If the poll passes, the bot **moves the channel into the
 permanent category for its kind** (text channels into the `kind:text`
 category, voice channels into the `kind:voice` one — autodetected) **and
-syncs its permission overwrites** with it. Voice channels can only be
+syncs its permission overwrites** with it. The sync also strips the
+creator's [deletion lock](#channel-creators-and-deletion-protection) —
+promoted channels belong to the community. Voice channels can only be
 nominated once a voice category is configured. If the move fails (category
 deleted, or the bot lacks Manage Channels / Manage Roles), the DM still
 reports the pass with a note asking an admin to finish the move manually.
+
+Nominating a **private** channel comes with an extra step: making a
+channel permanent also makes it **public**, so the bot first shows you a
+warning and only creates the poll after you press its acknowledgement
+button. The poll itself (posted inside the channel, as always for private
+channels) repeats that warning to voters. When such a poll passes, the
+bot lifts the channel's `@everyone` view restriction **before** moving
+and syncing it.
 
 ### Start a vote on deleting a channel
 

@@ -80,3 +80,19 @@ test('refreshPollCounts edits the poll embed, throttled per poll', async (t) => 
   await refreshPollCounts({ db }, guild, poll, { force: true });
   assert.equal(edits.length, 2, 'force bypasses the throttle');
 });
+
+test('a private permanence poll warns the channel will become public; other polls do not', () => {
+  const base = { id: 7, initiator_id: 'u1', closes_at: 3_600_000, subject: 'chan-1' };
+  const privatePerm = renderPollMessage({ ...base, type: 'permanent_channel', is_private: 1 });
+  assert.match(privatePerm.embeds[0].data.description, /become public/i);
+
+  const publicPerm = renderPollMessage({ ...base, type: 'permanent_channel', is_private: 0 });
+  assert.doesNotMatch(publicPerm.embeds[0].data.description, /become public/i);
+
+  const privateDeletion = renderPollMessage({ ...base, type: 'delete_channel', is_private: 1 });
+  assert.doesNotMatch(
+    privateDeletion.embeds[0].data.description,
+    /become public/i,
+    'deletion polls never carry the permanence warning'
+  );
+});

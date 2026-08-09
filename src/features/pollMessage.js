@@ -17,11 +17,18 @@ export function pollTitle(poll) {
 export function renderPollMessage(poll, { responded = 0, eligible = null } = {}) {
   const awaiting = eligible == null ? null : Math.max(0, eligible - responded);
   const closesSec = Math.floor(poll.closes_at / 1000);
+  const paragraphs = [
+    'Vote privately with the button below — votes are anonymous, and you can change yours until the poll closes.',
+  ];
+  // Permanence lifts a private channel's view deny — voters must know.
+  if (poll.is_private && poll.type === 'permanent_channel') {
+    paragraphs.push(
+      '⚠️ **If this poll passes, this channel will become public** — visible to everyone on the server.'
+    );
+  }
   const embed = new EmbedBuilder()
     .setTitle(pollTitle(poll))
-    .setDescription(
-      'Vote privately with the button below — votes are anonymous, and you can change yours until the poll closes.'
-    )
+    .setDescription(paragraphs.join('\n\n'))
     .addFields(
       { name: 'Started by', value: `<@${poll.initiator_id}>`, inline: true },
       {

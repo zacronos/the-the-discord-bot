@@ -18,7 +18,11 @@ import {
 } from './features/channelRegistry.js';
 import { rehydrateEphemeralCleanups } from './features/ephemeralCleanup.js';
 import { closePollPipeline, handleGuildLeave, handleResendButton } from './features/pollClose.js';
-import { handleCreateModal, handleStartButton } from './features/pollCreate.js';
+import {
+  handleConfirmPublicButton,
+  handleCreateModal,
+  handleStartButton,
+} from './features/pollCreate.js';
 import { ensureProfile } from './features/profile.js';
 import { startScheduler } from './features/scheduler.js';
 
@@ -43,6 +47,7 @@ ctx.ensureProfile = () => ensureProfile(ctx);
 const router = createRouter(ctx);
 router.command('ttdb-config', handleConfigCommand);
 router.component('start', handleStartButton);
+router.component('pubok', handleConfirmPublicButton);
 router.component('vote', handleVoteButton);
 router.component('cast', handleCastButton);
 router.component('resend', handleResendButton);
