@@ -290,14 +290,18 @@ test('channel-deletion polls need their own threshold before the button works', 
   assert.equal(select.component.type, 3, 'a bot-built option list, not a raw channel select');
   assert.deepEqual(
     select.component.options.map((o) => o.value),
-    ['chan-owned'],
-    'only the configured category is offered with this config'
+    ['chan-other', 'chan-owned', 'chan-poll', 'chan-target', 'chan-voice', 'chan-voice-owned'],
+    'every visible text/voice channel is offered (no other permanent groups configured)'
   );
 });
 
-test('the deletion dropdown lists channels from both permanent categories, labeled by kind', async (t) => {
+test('the deletion dropdown lists every visible text and voice channel outside protected groups', async (t) => {
   const db = tempDb(t);
-  setConfig(db, 'g1', { ...FULL_CONFIG, permanent_category_voice_id: 'cat-v' });
+  setConfig(db, 'g1', {
+    ...FULL_CONFIG,
+    permanent_category_voice_id: 'cat-v',
+    other_permanent_category_ids: JSON.stringify(['cat-other']),
+  });
   const interaction = fakeInteraction({ guild: fakeGuild() });
   await handleStartButton({ db }, interaction, ['delchan']);
 
@@ -306,19 +310,31 @@ test('the deletion dropdown lists channels from both permanent categories, label
     select.component.options,
     [
       { label: '#perm-chat', value: 'chan-owned' },
+      { label: '#polls', value: 'chan-poll' },
+      { label: '#target', value: 'chan-target' },
+      { label: '🔊 lounge', value: 'chan-voice' },
       { label: '🔊 perm-voice', value: 'chan-voice-owned' },
     ],
-    'text and voice members of the permanent categories, nothing else'
+    'labeled by kind; the protected cat-other channel is the only exclusion'
   );
 });
 
-test('the deletion button refuses when the permanent categories are empty', async (t) => {
+test('the deletion button refuses when every visible channel is protected', async (t) => {
   const db = tempDb(t);
-  setConfig(db, 'g1', { ...FULL_CONFIG, permanent_category_id: 'cat-empty' });
-  const interaction = fakeInteraction({ guild: fakeGuild() });
+  setConfig(db, 'g1', { ...FULL_CONFIG, other_permanent_category_ids: JSON.stringify(['cat-all']) });
+  const byId = new Map([
+    ['chan-a', { id: 'chan-a', name: 'a', parentId: 'cat-all' }],
+    ['chan-b', { id: 'chan-b', name: 'b', type: 2, parentId: 'cat-all' }],
+  ]);
+  const guild = {
+    id: 'g1',
+    channels: { fetch: async (id) => (id === undefined ? byId : byId.get(id)) },
+    members: { fetch: async () => new Map() },
+  };
+  const interaction = fakeInteraction({ guild });
   await handleStartButton({ db }, interaction, ['delchan']);
   assert.equal(interaction.shown.length, 0);
-  assert.match(interaction.replies[0].content, /no channels in the permanent categories/i);
+  assert.match(interaction.replies[0].content, /no channels you can see/i);
 });
 
 test('other permanent groups are protected from the deletion dropdown', async (t) => {
@@ -330,8 +346,8 @@ test('other permanent groups are protected from the deletion dropdown', async (t
   const select = interaction.shown[0].components.find((c) => c.component?.custom_id === 'channel');
   assert.deepEqual(
     select.component.options.map((o) => o.value),
-    ['chan-owned'],
-    'only the managed categories are deletable — never the other groups'
+    ['chan-owned', 'chan-poll', 'chan-target', 'chan-voice', 'chan-voice-owned'],
+    'everything visible is deletable — except the other permanent groups'
   );
 });
 
@@ -403,8 +419,8 @@ test('the deletion dropdown omits channels the initiator cannot see', async (t) 
   const select = interaction.shown[0].components.find((c) => c.component?.custom_id === 'channel');
   assert.deepEqual(
     select.component.options.map((o) => o.value),
-    ['chan-voice-owned'],
-    'the hidden category channel is not offered to this member'
+    ['chan-other', 'chan-poll', 'chan-target', 'chan-voice', 'chan-voice-owned'],
+    'the hidden channel is not offered to this member'
   );
 });
 
@@ -542,28 +558,47 @@ test('the deletion dropdown caps at the 25-option component limit', async (t) =>
   assert.equal(select.component.options.length, 25);
 });
 
-test('only channels inside the permanent categories can be nominated for deletion', async (t) => {
+test('other-permanent-group channels are refused for deletion; any other visible channel is accepted', async (t) => {
   clearEligibilityCache();
   const db = tempDb(t);
-  setConfig(db, 'g1', FULL_CONFIG); // legacy threshold covers delchan via fallback
+  // legacy threshold covers delchan via fallback
+  setConfig(db, 'g1', { ...FULL_CONFIG, other_permanent_category_ids: JSON.stringify(['cat-other']) });
 
-  const outside = fakeInteraction({
+  const protectedSubmit = fakeInteraction({
     guild: fakeGuild(),
-    values: { channel: ['chan-target'], duration: ['604800'] }, // parentId null
+    values: { channel: ['chan-other'], duration: ['604800'] }, // parentId cat-other
   });
-  await handleCreateModal({ db }, outside, ['delchan']);
+  await handleCreateModal({ db }, protectedSubmit, ['delchan']);
   assert.equal(listOpen(db, 'g1').length, 0);
-  assert.match(outside.replies[0].content, /permanent categories/i);
+  assert.match(protectedSubmit.replies[0].content, /protected permanent group/i);
 
-  const inside = fakeInteraction({
+  const plain = fakeInteraction({
     guild: fakeGuild(),
-    values: { channel: ['chan-owned'], duration: ['604800'] }, // parentId cat-1
+    values: { channel: ['chan-target'], duration: ['604800'] }, // ordinary uncategorized channel
   });
-  await handleCreateModal({ db, now: () => 0 }, inside, ['delchan']);
+  await handleCreateModal({ db, now: () => 0 }, plain, ['delchan']);
   const [poll] = listOpen(db, 'g1');
   assert.equal(poll.type, 'delete_channel');
-  assert.equal(poll.subject, 'chan-owned');
-  assert.equal(poll.subject_name, 'perm-chat', 'the name is captured for post-deletion DMs');
+  assert.equal(poll.subject, 'chan-target');
+  assert.equal(poll.subject_name, 'target', 'the name is captured for post-deletion DMs');
+});
+
+test('a forged deletion submission naming a category is refused', async (t) => {
+  clearEligibilityCache();
+  const db = tempDb(t);
+  setConfig(db, 'g1', FULL_CONFIG);
+  const guild = fakeGuild();
+  const orig = guild.channels.fetch;
+  guild.channels.fetch = async (id) =>
+    id === 'cat-1' ? { id: 'cat-1', name: 'perm-group', type: 4 } : orig(id);
+
+  const interaction = fakeInteraction({
+    guild,
+    values: { channel: ['cat-1'], duration: ['604800'] },
+  });
+  await handleCreateModal({ db }, interaction, ['delchan']);
+  assert.equal(listOpen(db, 'g1').length, 0);
+  assert.match(interaction.replies[0].content, /text and voice channels/i);
 });
 
 test('voice channels are refused until a voice permanent category is configured', async (t) => {

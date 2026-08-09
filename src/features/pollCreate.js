@@ -9,6 +9,7 @@ import {
   channelKind,
   maxOpenPolls,
   missingRequiredSettings,
+  otherPermanentCategoryIds,
   permanentCategoryFor,
   thresholdFor,
 } from './configCommands.js';
@@ -58,17 +59,18 @@ function finalizeChannelOptions(options, what) {
   return options;
 }
 
-// Deletion candidates: channels inside the two managed permanent categories
-// (+ the legacy one). "Other" permanent groups are protected and never
-// offered. Discord's channel select cannot filter by category, so the
-// dropdown is a bot-built string select of exactly these channels.
+// Deletion candidates: every text/voice channel the initiator can see.
+// Only the "other" permanent groups are protected and never offered.
+// Discord's channel select cannot filter by category, so the dropdown is a
+// bot-built string select of exactly these channels.
 export function deletableChannelOptions(cfg, allChannels, member) {
-  const allowed = new Set(
-    [cfg.permanent_category_id, cfg.permanent_category_text_id, cfg.permanent_category_voice_id].filter(Boolean)
-  );
+  const protectedIds = new Set(otherPermanentCategoryIds(cfg));
   const options = [];
   for (const channel of allChannels.values()) {
-    if (!channel || !allowed.has(channel.parentId)) continue;
+    if (!channel) continue;
+    const kind = channel.type ?? 0;
+    if (kind !== 0 && kind !== 2) continue; // text and voice only
+    if (protectedIds.has(channel.parentId)) continue;
     if (!memberCanView(channel, member)) continue;
     options.push(channelOption(channel));
   }
@@ -197,7 +199,7 @@ export async function handleStartButton(ctx, interaction, [typePart]) {
       return replyEphemeral(
         interaction,
         typePart === 'delchan'
-          ? '⚠️ There are no channels in the permanent categories to delete.'
+          ? '⚠️ There are no channels you can see that can be nominated for deletion.'
           : '⚠️ Every text and voice channel is already in a permanent group.'
       );
     }
@@ -259,13 +261,14 @@ export async function handleCreateModal(ctx, interaction, [typePart]) {
     if (!memberCanView(channel, interaction.member)) {
       return replyEphemeral(interaction, '⚠️ You can only nominate channels you can see.');
     }
-    const permanentCategories = new Set(
-      [cfg.permanent_category_id, cfg.permanent_category_text_id, cfg.permanent_category_voice_id].filter(Boolean)
-    );
-    if (!permanentCategories.has(channel.parentId)) {
+    const kind = channel.type ?? 0;
+    if (kind !== 0 && kind !== 2) {
+      return replyEphemeral(interaction, '⚠️ Only text and voice channels can be voted for deletion.');
+    }
+    if (new Set(otherPermanentCategoryIds(cfg)).has(channel.parentId)) {
       return replyEphemeral(
         interaction,
-        '⚠️ Only channels inside the permanent categories can be voted for deletion.'
+        "⚠️ That channel is in a protected permanent group and can't be voted for deletion."
       );
     }
     subject = channelId;
