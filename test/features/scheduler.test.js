@@ -173,3 +173,14 @@ test('runSweep triggers the daily permission sweep once its day has elapsed', as
   await runSweep(ctx, DAY + DAY);
   assert.equal(getAppState(db, 'perm_sweep_at'), String(DAY + DAY), 'a day later it runs again');
 });
+
+test('a due deletion is dropped when its channel has since joined a permanent group', async (t) => {
+  const { db, ctx, doomedChannel } = makeWorld(t);
+  ctx.closeDuePoll = async () => {};
+  doomedChannel.parentId = 'cat-1'; // makeWorld configures cat-1 as the permanent category
+  scheduleDeletion(db, { channelId: 'chan-doomed', guildId: 'g1', deleteAt: 9_000 });
+
+  await runSweep(ctx, 10_000);
+  assert.equal(doomedChannel.deleted, false, 'the now-permanent channel survives');
+  assert.equal(listDueDeletions(db, 999_000).length, 0, 'the stale schedule is dropped');
+});

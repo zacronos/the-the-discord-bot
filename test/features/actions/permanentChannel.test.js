@@ -5,6 +5,7 @@ import { permanentChannelAction } from '../../../src/features/actions/permanentC
 import { sweepChannelPermissions } from '../../../src/features/channelRegistry.js';
 import { setConfig } from '../../../src/store/guildConfig.js';
 import { recordKnownChannel } from '../../../src/store/knownChannels.js';
+import { getScheduledDeletion, scheduleDeletion } from '../../../src/store/scheduledDeletions.js';
 import { tempDb } from '../../store/helpers.js';
 
 const POLL = { id: 9, type: 'permanent_channel', subject: 'chan-target' };
@@ -90,6 +91,19 @@ test('promotion strips the creator-only deletion lock and the registry never re-
   const corrections = await sweepChannelPermissions({ db }, guild);
   assert.deepEqual(corrections, []);
   assert.equal(target.edits.length, 0, 'no overwrite edits after promotion');
+});
+
+test('promotion cancels a pending scheduled deletion for the channel', async (t) => {
+  const db = tempDb(t);
+  setConfig(db, 'g1', { permanent_category_id: 'cat-1' });
+  scheduleDeletion(db, { channelId: 'chan-target', guildId: 'g1', deleteAt: 99_000, pollId: 5 });
+  const target = { id: 'chan-target', name: 'quarterly', setParent: async () => {} };
+  const guild = fakeGuild({ 'chan-target': target, 'cat-1': { id: 'cat-1', name: 'permanent' } });
+
+  const note = await permanentChannelAction({ db }, guild, POLL);
+
+  assert.equal(getScheduledDeletion(db, 'chan-target'), undefined, 'the pending deletion is canceled');
+  assert.match(note, /scheduled deletion was canceled/i);
 });
 
 test('fails clearly when the voted-on channel no longer exists', async (t) => {

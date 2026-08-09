@@ -3,6 +3,7 @@
 // permission overwrites with it (spec). A private channel is made public
 // first — the initiator acknowledged that when the poll was started.
 import { getConfig } from '../../store/guildConfig.js';
+import { removeScheduledDeletion } from '../../store/scheduledDeletions.js';
 import { channelKind, permanentCategoryFor } from '../configCommands.js';
 import { isPrivateChannel } from '../eligibility.js';
 
@@ -39,7 +40,15 @@ export async function permanentChannelAction(ctx, guild, poll) {
     lockPermissions: true,
     reason: `The The Bot: permanence poll ${poll.id} passed`,
   });
+  // A channel the community just made permanent must not die to a deletion
+  // poll that passed before the promotion.
+  const deletionCanceled = removeScheduledDeletion(ctx.db, channel.id) > 0;
+  if (deletionCanceled) {
+    console.log(
+      `[ttdb] pending scheduled deletion of channel ${channel.id} canceled by permanence poll ${poll.id}`
+    );
+  }
   return `#${channel.name} (<#${channel.id}>) has been moved into #${category.name} (<#${category.id}>) with its permissions synced to the category.${
     wasPrivate ? ' The channel is now public.' : ''
-  }`;
+  }${deletionCanceled ? ' Its pending scheduled deletion was canceled.' : ''}`;
 }

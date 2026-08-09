@@ -242,6 +242,15 @@ with its time and originating poll, and
 a notice in the channel saying the deletion was canceled and naming who
 canceled it.
 
+Two lifecycle guards prevent crossed outcomes: a channel voted permanent
+while a deletion was already scheduled has that pending deletion
+canceled by the promotion, and the sweep takes a last look before the
+axe falls — a channel that has joined any permanent group since its poll
+passed is spared and its schedule dropped. (Concurrent permanence and
+deletion polls about the same channel are deliberately allowed:
+refusing them would let a perpetually renewed permanence poll block
+deletion votes forever.)
+
 ### Private channels
 
 When the nominated channel is **private** (hidden from `@everyone`), the

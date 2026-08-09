@@ -2,9 +2,11 @@
 // mode. Each sweep: close due polls, then refresh (or abort) the remaining
 // open ones. Startup runs an immediate catch-up sweep for downtime.
 import { HOUR_MS, MINUTE_MS, msUntilNextBoundary } from '../util/time.js';
+import { getConfig } from '../store/guildConfig.js';
 import { listDue, listOpenAll } from '../store/polls.js';
 import { listDueDeletions, removeScheduledDeletion } from '../store/scheduledDeletions.js';
 import { runDailyPermissionSweep } from './channelRegistry.js';
+import { allPermanentCategoryIds } from './configCommands.js';
 import { abortPoll } from './pollClose.js';
 import { refreshPollCounts } from './pollMessage.js';
 
@@ -40,6 +42,16 @@ export async function runSweep(ctx, now = Date.now()) {
       const guild = await ctx.client.guilds.fetch(row.guild_id).catch(() => null);
       const channel = await guild?.channels.fetch(row.channel_id).catch(() => null);
       if (channel) {
+        // Last look before the axe: a channel that has joined a permanent
+        // group since its poll passed (promotion or a manual move) is spared.
+        const cfg = getConfig(ctx.db, row.guild_id);
+        if (allPermanentCategoryIds(cfg).has(channel.parentId)) {
+          console.log(
+            `[ttdb] dropping scheduled deletion of channel ${row.channel_id}: it now lives in a permanent group`
+          );
+          removeScheduledDeletion(ctx.db, row.channel_id);
+          continue;
+        }
         await channel.delete(`The The Bot: deletion poll ${row.poll_id ?? '?'} passed`);
         console.log(`[ttdb] deleted channel ${row.channel_id} (scheduled by poll ${row.poll_id ?? '?'})`);
       }

@@ -285,6 +285,8 @@ Native Windows Task Scheduler logon-trigger task: no third-party binary (NSSM) o
 
 ## Post-plan change log
 
+- [X] 2026-08-09 (owner request, assessment gap 2): deletion-lifecycle guards. A passed permanence poll cancels the channel's pending scheduled deletion (noted in the result DM), and the deletion sweep re-checks at execution time — a channel inside any permanent group is spared and its schedule dropped. Decided **against** refusing concurrent cross-type polls on one channel (owner): a perpetually renewed permanence poll could otherwise filibuster deletion votes.
+
 - [X] 2026-08-09 (owner request, assessment gap 6): documented (README, channel-protection section) that a locked channel moved into an `other-permanent-groups` category keeps its creator-lock overwrites — the bot stops touching such channels entirely and never cleans them up; removal is manual. Decision: document the asymmetry rather than auto-clean on transition.
 
 - [X] 2026-08-09 (owner request, assessment gap 5): `/ttdb-config permanent-category` now warns when the chosen category is hidden from `@everyone` — the category sync is what delivers the "permanence makes a channel public" promise, so a private category would quietly break it. Warning only; the setting still saves.
