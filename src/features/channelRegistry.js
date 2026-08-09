@@ -82,7 +82,8 @@ async function auditLogCreatorMap(guild) {
 // the Manage Channels bit of each overwrite: @everyone gets a deny, the
 // creator (while still a member) gets an allow, and every other allow is
 // cleared. Returns a description of each correction made (empty = aligned).
-async function enforceCreatorOnlyDeletion(guild, channel, creatorId) {
+// Exported for /ttdb-set-creator, which re-runs it after a transfer.
+export async function enforceCreatorOnlyDeletion(guild, channel, creatorId) {
   const overwrites = channel.permissionOverwrites;
   if (!overwrites?.edit) return [];
   const everyoneId = guild.roles?.everyone?.id ?? guild.id;

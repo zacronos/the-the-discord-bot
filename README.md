@@ -289,6 +289,15 @@ Once a day the bot re-checks every recorded non-permanent channel and
 corrects any drift: a missing `@everyone` deny, a missing creator grant,
 or a Manage Channels grant someone slipped onto another role or member.
 
+Creator privileges can be handed over with
+`/ttdb-set-creator channel:<#channel> member:<@member>` — usable by the
+channel's recorded creator, or by anyone with **Manage Server** (which is
+also how to fix channels whose creator the audit log never revealed). The
+new creator must be a member who can see the channel; bots are refused.
+The old creator's deletion grant moves to the new one. Channels inside
+any permanent group are refused — their permissions belong to the
+category, not a creator.
+
 ## How results are decided
 
 A poll closes at its scheduled hour (the bot sweeps once per hour, on the
