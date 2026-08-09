@@ -5,6 +5,7 @@
 // (with its expiration timestamp) so restarts don't re-spend the budget.
 // The trade-off is a member count up to an hour stale; membership changes
 // are rare and the sweep cadence is hourly anyway.
+import { PermissionFlagsBits } from 'discord.js';
 import { HOUR_MS } from '../util/time.js';
 import { clearMemberCache, getMemberCache, setMemberCache } from '../store/memberCache.js';
 
@@ -46,4 +47,41 @@ export async function eligibleVoterCount(db, guild, opts = {}) {
 export function clearEligibilityCache(db) {
   memory.clear();
   if (db) clearMemberCache(db);
+}
+
+// A channel is private when the @everyone role cannot view it. Fail-public
+// when the permission surface is missing (test fakes; real channels always
+// have permissionsFor).
+export function isPrivateChannel(guild, channel) {
+  const everyone = guild.roles?.everyone;
+  if (!everyone || typeof channel?.permissionsFor !== 'function') return false;
+  const perms = channel.permissionsFor(everyone);
+  return perms ? !perms.has(PermissionFlagsBits.ViewChannel) : true;
+}
+
+// Non-bot members who can view the channel. Needs real member objects (role
+// data) so it reads the gateway cache, falling back to one real fetch when
+// the cache is empty — private-channel polls are rare enough that this
+// stays far inside the op8 rate budget.
+export async function channelViewerCount(guild, channel) {
+  let members = guild.members.cache;
+  if (!members || members.size === 0) {
+    members = await guild.members.fetch();
+  }
+  let count = 0;
+  for (const member of members.values()) {
+    if (member.user?.bot) continue;
+    if (channel.permissionsFor?.(member)?.has(PermissionFlagsBits.ViewChannel)) count += 1;
+  }
+  return count;
+}
+
+// The voting population for a poll: the whole guild for public polls, the
+// subject channel's viewers for private ones (null when the channel is gone
+// and the population is therefore unknowable).
+export async function pollPopulation(db, guild, poll, opts = {}) {
+  if (!poll.is_private) return eligibleVoterCount(db, guild, opts);
+  const channel = await guild.channels.fetch(poll.subject).catch(() => null);
+  if (!channel) return null;
+  return channelViewerCount(guild, channel);
 }

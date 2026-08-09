@@ -4,7 +4,8 @@ import { ActionRowBuilder, ButtonBuilder, ButtonStyle, MessageFlags } from 'disc
 import { buildId } from '../discord/customId.js';
 import { getPoll } from '../store/polls.js';
 import { castVote, countVoters, getVote } from '../store/votes.js';
-import { eligibleVoterCount } from './eligibility.js';
+import { pollPopulation } from './eligibility.js';
+import { memberCanView } from './pollCreate.js';
 import { pollTitle, refreshPollCounts } from './pollMessage.js';
 import { EPHEMERAL_TTL_MS, scheduleDelayed } from '../util/time.js';
 
@@ -117,9 +118,22 @@ export function buildBallot(poll, currentChoice) {
   return { content, components: rows, allowedMentions: { parse: [] } };
 }
 
+// Private polls only accept interactions from members who can see the
+// subject channel — a forged customId must not leak or count.
+async function canParticipate(ctx, interaction, poll) {
+  if (!poll.is_private) return true;
+  const channel = await interaction.guild.channels.fetch(poll.subject).catch(() => null);
+  return channel ? memberCanView(channel, interaction.member) : false;
+}
+
 export async function handleVoteButton(ctx, interaction, [pollIdRaw]) {
   const poll = getPoll(ctx.db, Number(pollIdRaw));
-  if (!poll || poll.status !== 'open' || poll.guild_id !== interaction.guildId) {
+  if (
+    !poll ||
+    poll.status !== 'open' ||
+    poll.guild_id !== interaction.guildId ||
+    !(await canParticipate(ctx, interaction, poll))
+  ) {
     return interaction.reply({ content: 'This poll has closed.', flags: MessageFlags.Ephemeral });
   }
   const current = getVote(ctx.db, poll.id, interaction.user.id);
@@ -129,7 +143,12 @@ export async function handleVoteButton(ctx, interaction, [pollIdRaw]) {
 
 export async function handleCastButton(ctx, interaction, [pollIdRaw, choice]) {
   const poll = getPoll(ctx.db, Number(pollIdRaw));
-  if (!poll || poll.status !== 'open' || poll.guild_id !== interaction.guildId) {
+  if (
+    !poll ||
+    poll.status !== 'open' ||
+    poll.guild_id !== interaction.guildId ||
+    !(await canParticipate(ctx, interaction, poll))
+  ) {
     return interaction.update({ content: 'This poll has closed.', components: [] });
   }
   castVote(ctx.db, poll.id, interaction.user.id, choice);
@@ -150,10 +169,11 @@ export async function handleCastButton(ctx, interaction, [pollIdRaw, choice]) {
     }
   }
 
-  // Public counts + everyone-has-voted early close (Q2: non-bot members).
+  // Public counts + everyone-has-voted early close. The population is the
+  // whole guild for public polls, the channel's viewers for private ones.
   await refreshPollCounts(ctx, interaction.guild, poll).catch(() => {});
-  const eligible = await eligibleVoterCount(ctx.db, interaction.guild).catch(() => null);
-  if (eligible != null && countVoters(ctx.db, poll.id) >= eligible && ctx.closeDuePoll) {
+  const population = await pollPopulation(ctx.db, interaction.guild, poll).catch(() => null);
+  if (population != null && countVoters(ctx.db, poll.id) >= population && ctx.closeDuePoll) {
     await ctx.closeDuePoll(poll);
   }
 }

@@ -6,15 +6,25 @@ const FINAL_STATUSES = new Set(['passed', 'failed', 'vetoed', 'aborted']);
 
 export function createPoll(
   db,
-  { guildId, type, subject, subjectName = null, initiatorId, channelId, closesAt, createdAt = Date.now() }
+  {
+    guildId,
+    type,
+    subject,
+    subjectName = null,
+    initiatorId,
+    channelId,
+    closesAt,
+    isPrivate = false,
+    createdAt = Date.now(),
+  }
 ) {
   if (!TYPES.has(type)) throw new Error(`Unknown poll type: ${type}`);
   const { lastInsertRowid } = db
     .prepare(
-      `INSERT INTO polls (guild_id, type, subject, subject_name, initiator_id, channel_id, created_at, closes_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+      `INSERT INTO polls (guild_id, type, subject, subject_name, initiator_id, channel_id, created_at, closes_at, is_private)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
     )
-    .run(guildId, type, subject, subjectName, initiatorId, channelId, createdAt, closesAt);
+    .run(guildId, type, subject, subjectName, initiatorId, channelId, createdAt, closesAt, isPrivate ? 1 : 0);
   return getPoll(db, Number(lastInsertRowid));
 }
 

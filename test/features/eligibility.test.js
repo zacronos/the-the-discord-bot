@@ -1,9 +1,12 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
+  channelViewerCount,
   clearEligibilityCache,
   eligibleVoterCount,
   fetchGuildMembers,
+  isPrivateChannel,
+  pollPopulation,
 } from '../../src/features/eligibility.js';
 import { tempDb } from '../store/helpers.js';
 
@@ -83,6 +86,68 @@ test('fetchGuildMembers shares one gateway fetch between pruning and counting', 
   assert.equal(members.size, 2, 'the full member list is returned');
   assert.equal(await eligibleVoterCount(db, guild, { now: 2_000 }), 1);
   assert.equal(guild.fetches, 1, 'the count reuses the member fetch');
+});
+
+test('isPrivateChannel keys off the everyone role; channels without overwrites are public', () => {
+  const guild = { roles: { everyone: { id: 'role-everyone' } } };
+  const privateChannel = { permissionsFor: (who) => ({ has: () => who?.id !== 'role-everyone' }) };
+  const publicChannel = { permissionsFor: () => ({ has: () => true }) };
+  assert.equal(isPrivateChannel(guild, privateChannel), true);
+  assert.equal(isPrivateChannel(guild, publicChannel), false);
+  assert.equal(isPrivateChannel(guild, { id: 'no-perms-fn' }), false, 'fail-public without the method');
+});
+
+test('channelViewerCount counts non-bot members who can view, from cache or a fresh fetch', async () => {
+  const members = new Map([
+    ['u1', { id: 'u1', user: { bot: false } }],
+    ['u2', { id: 'u2', user: { bot: false } }],
+    ['u3', { id: 'u3', user: { bot: false } }],
+    ['bot1', { id: 'bot1', user: { bot: true } }],
+  ]);
+  const channel = { permissionsFor: (m) => ({ has: () => m.id !== 'u3' }) }; // u3 cannot see it
+  const cached = { members: { cache: members, fetch: async () => members } };
+  assert.equal(await channelViewerCount(cached, channel), 2);
+
+  let fetched = 0;
+  const empty = {
+    members: {
+      cache: new Map(),
+      fetch: async () => {
+        fetched += 1;
+        return members;
+      },
+    },
+  };
+  assert.equal(await channelViewerCount(empty, channel), 2);
+  assert.equal(fetched, 1, 'an empty cache falls back to a real fetch');
+});
+
+test('pollPopulation uses the guild for public polls and channel viewers for private ones', async (t) => {
+  clearEligibilityCache();
+  const db = tempDb(t);
+  const members = new Map([
+    ['u1', { id: 'u1', user: { bot: false } }],
+    ['u2', { id: 'u2', user: { bot: false } }],
+  ]);
+  const privateChannel = { permissionsFor: (m) => ({ has: () => m.id === 'u1' }) };
+  const guild = {
+    id: 'g1',
+    members: { cache: members, fetch: async () => members },
+    channels: {
+      fetch: async (id) => {
+        if (id === 'chan-priv') return privateChannel;
+        throw new Error('Unknown Channel');
+      },
+    },
+  };
+
+  assert.equal(await pollPopulation(db, guild, { is_private: 0 }), 2);
+  assert.equal(await pollPopulation(db, guild, { is_private: 1, subject: 'chan-priv' }), 1);
+  assert.equal(
+    await pollPopulation(db, guild, { is_private: 1, subject: 'chan-gone' }),
+    null,
+    'a vanished private channel yields no population'
+  );
 });
 
 test('clearEligibilityCache with a db also clears the persisted snapshot', async (t) => {

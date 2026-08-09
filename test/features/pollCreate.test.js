@@ -48,6 +48,7 @@ function fakeGuild() {
   return {
     id: 'g1',
     pollChannel,
+    roles: { everyone: { id: 'role-everyone' } },
     channels: {
       fetch: async (id) => {
         if (id === undefined) return byId; // full listing
@@ -446,6 +447,78 @@ test('a forged submission for an invisible channel is refused (both channel poll
   await handleCreateModal({ db }, permSubmit, ['permchan']);
   assert.equal(listOpen(db, 'g1').length, 0);
   assert.match(permSubmit.replies[0].content, /channels you can see/i);
+});
+
+function makePrivate(channel) {
+  channel.permissionsFor = (who) => ({ has: () => who?.id !== 'role-everyone' });
+  channel.sent = [];
+  channel.send = async (payload) => {
+    channel.sent.push(payload);
+    return { id: `priv-msg-${channel.sent.length}` };
+  };
+  return channel;
+}
+
+test('a poll about a private channel is posted inside that channel, not the poll channel', async (t) => {
+  clearEligibilityCache();
+  const db = tempDb(t);
+  setConfig(db, 'g1', FULL_CONFIG);
+  const guild = fakeGuild();
+  const target = makePrivate(await guild.channels.fetch('chan-target'));
+
+  const interaction = fakeInteraction({
+    guild,
+    values: { channel: ['chan-target'], duration: ['604800'] },
+  });
+  await handleCreateModal({ db, now: () => 0 }, interaction, ['permchan']);
+
+  const [poll] = listOpen(db, 'g1');
+  assert.equal(poll.is_private, 1);
+  assert.equal(poll.channel_id, 'chan-target', 'the poll lives in the private channel');
+  assert.equal(target.sent.length, 1, 'posted into the nominated channel');
+  assert.equal(guild.pollChannel.sent.length, 0, 'nothing leaks into the public poll channel');
+  assert.match(interaction.replies[0].content, /channels\/g1\/chan-target\//, 'the link points there too');
+});
+
+test('a private deletion poll also stays inside the channel', async (t) => {
+  clearEligibilityCache();
+  const db = tempDb(t);
+  setConfig(db, 'g1', FULL_CONFIG);
+  const guild = fakeGuild();
+  const owned = makePrivate(await guild.channels.fetch('chan-owned'));
+
+  const interaction = fakeInteraction({
+    guild,
+    values: { channel: ['chan-owned'], duration: ['604800'] },
+  });
+  await handleCreateModal({ db, now: () => 0 }, interaction, ['delchan']);
+
+  const [poll] = listOpen(db, 'g1');
+  assert.equal(poll.type, 'delete_channel');
+  assert.equal(poll.is_private, 1);
+  assert.equal(poll.channel_id, 'chan-owned');
+  assert.equal(owned.sent.length, 1);
+  assert.equal(guild.pollChannel.sent.length, 0);
+});
+
+test('when the bot cannot post into the private channel, creation fails cleanly', async (t) => {
+  clearEligibilityCache();
+  const db = tempDb(t);
+  setConfig(db, 'g1', FULL_CONFIG);
+  const guild = fakeGuild();
+  const target = makePrivate(await guild.channels.fetch('chan-target'));
+  target.send = async () => {
+    throw new Error('Missing Access');
+  };
+
+  const interaction = fakeInteraction({
+    guild,
+    values: { channel: ['chan-target'], duration: ['604800'] },
+  });
+  await handleCreateModal({ db, now: () => 0 }, interaction, ['permchan']);
+
+  assert.equal(listOpen(db, 'g1').length, 0, 'no open poll is left behind');
+  assert.match(interaction.replies[0].content, /post in|access/i);
 });
 
 test('the deletion dropdown caps at the 25-option component limit', async (t) => {

@@ -15,7 +15,7 @@ import {
 } from '../store/votes.js';
 import { deleteBallots } from './ballot.js';
 import { thresholdFor } from './configCommands.js';
-import { eligibleVoterCount, fetchGuildMembers } from './eligibility.js';
+import { fetchGuildMembers, pollPopulation } from './eligibility.js';
 
 // Channel references in DMs lead with the literal name (a bare <#id>
 // renders as "#unknown" once the channel is deleted).
@@ -111,31 +111,38 @@ export async function closePollPipeline(ctx, poll) {
     }
   }
 
-  let eligibilityError = null;
-  const eligible = await eligibleVoterCount(ctx.db, guild, { now }).catch((err) => {
-    eligibilityError = err;
+  let populationError = null;
+  const population = await pollPopulation(ctx.db, guild, poll, { now }).catch((err) => {
+    populationError = err;
     return null;
   });
   const threshold = thresholdFor(cfg, poll.type) ?? { type: 'count', value: Number.POSITIVE_INFINITY };
-  if (eligible == null && threshold.type === 'percent') {
-    // A transient member-count failure must not decide a percent-threshold
-    // poll either way — put it back and let the next sweep retry.
+  if (population == null && (threshold.type === 'percent' || poll.is_private)) {
+    // An unknowable population must not decide the poll either way — put it
+    // back and let the next sweep retry. (Private polls need the viewer
+    // count even for literal thresholds, because of the cap.)
     releaseClose(ctx.db, poll.id);
     console.warn(
-      `[ttdb] poll ${poll.id}: member count unavailable (${eligibilityError?.message ?? 'unknown'}); deferring close to the next sweep`
+      `[ttdb] poll ${poll.id}: population unavailable (${populationError?.message ?? 'channel missing'}); deferring close to the next sweep`
     );
     return false;
   }
+  // Private polls: literal targets can never exceed the number of people
+  // who could actually vote.
+  const effectiveThreshold =
+    poll.is_private && threshold.type === 'count'
+      ? { type: 'count', value: Math.min(threshold.value, population) }
+      : threshold;
   const votersCount = countVoters(ctx.db, poll.id);
   const counts = countByChoice(ctx.db, poll.id);
   const result = tallyPoll({
     counts,
     hardNoWeight: cfg.hard_no_weight,
-    threshold,
-    eligibleCount: eligible ?? 0,
+    threshold: effectiveThreshold,
+    eligibleCount: population ?? 0,
   });
   console.log(
-    `[ttdb] poll ${poll.id} (${poll.type}) closed: ${result.outcome} — ${votersCount} voter(s), total ${result.total}, target ${result.target}, eligible ${eligible ?? 'unknown'}`
+    `[ttdb] poll ${poll.id} (${poll.type}${poll.is_private ? ', private' : ''}) closed: ${result.outcome} — ${votersCount} voter(s), total ${result.total}, target ${result.target}, population ${population ?? 'unknown'}`
   );
   const vetoerIds = result.outcome === 'vetoed' ? listVotersByChoice(ctx.db, poll.id, 'hard_no') : [];
 

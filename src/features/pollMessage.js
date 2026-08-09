@@ -6,7 +6,7 @@
 import { ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder } from 'discord.js';
 import { buildId } from '../discord/customId.js';
 import { countVoters } from '../store/votes.js';
-import { eligibleVoterCount } from './eligibility.js';
+import { pollPopulation } from './eligibility.js';
 
 export function pollTitle(poll) {
   if (poll.type === 'invite') return `Should we invite ${poll.subject} to the server?`;
@@ -54,7 +54,7 @@ export async function refreshPollCounts(ctx, guild, poll, { force = false, now =
   const channel = await guild.channels.fetch(poll.channel_id ?? poll.channelId);
   const message = await channel.messages.fetch(poll.message_id);
   const responded = countVoters(ctx.db, poll.id);
-  const eligible = await eligibleVoterCount(ctx.db, guild).catch(() => null);
+  const eligible = await pollPopulation(ctx.db, guild, poll).catch(() => null);
   await message.edit({ embeds: renderPollMessage(poll, { responded, eligible }).embeds });
   return true;
 }

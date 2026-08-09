@@ -196,6 +196,78 @@ test('a percent-threshold close is deferred when the member count is unavailable
   assert.equal(countVoters(db, poll.id), 1, 'votes retained for the retry');
 });
 
+// Adds a private channel (visible to `viewerIds` only) to a world, plus the
+// member cache the viewer counter reads.
+function wirePrivateChannel(world, viewerIds) {
+  const channel = {
+    id: 'chan-priv',
+    permissionsFor: (who) => ({ has: () => viewerIds.includes(who?.id) }),
+  };
+  const baseFetch = world.guild.channels.fetch;
+  world.guild.channels.fetch = async (id) => (id === 'chan-priv' ? channel : baseFetch(id));
+  world.guild.members.cache = new Map(
+    ['u1', 'u2', 'u3'].map((id) => [id, { id, user: { bot: false } }])
+  );
+  return channel;
+}
+
+function makePrivatePoll(db) {
+  const poll = createPoll(db, {
+    guildId: 'g1',
+    type: 'permanent_channel',
+    subject: 'chan-priv',
+    initiatorId: 'u1',
+    channelId: 'chan-priv',
+    closesAt: 5_000,
+    isPrivate: true,
+  });
+  setMessageId(db, poll.id, 'msg-2');
+  return poll;
+}
+
+test('private polls apply percent thresholds to channel viewers, not the whole server', async (t) => {
+  const world = makeWorld(t, {
+    config: { ...CONFIG, hard_no_weight: '-2', threshold_type: 'percent', threshold_value: 50 },
+  });
+  wirePrivateChannel(world, ['u1', 'u2']); // 2 viewers of 3 members
+  const poll = makePrivatePoll(world.db);
+  castVote(world.db, poll.id, 'u1', 'yes'); // total 1; viewer target 1, server target 1.5
+
+  await closePollPipeline(world.ctx, poll);
+  assert.equal(getPoll(world.db, poll.id).status, 'passed', 'target is 50% of 2 viewers');
+});
+
+test('private polls cap a literal threshold at the viewer count', async (t) => {
+  const world = makeWorld(t, {
+    config: { ...CONFIG, hard_no_weight: '-2', threshold_type: 'count', threshold_value: 5 },
+  });
+  wirePrivateChannel(world, ['u1', 'u2']);
+  const poll = makePrivatePoll(world.db);
+  castVote(world.db, poll.id, 'u1', 'yes');
+  castVote(world.db, poll.id, 'u2', 'yes'); // total 2 vs configured 5, capped to 2 viewers
+
+  await closePollPipeline(world.ctx, poll);
+  assert.equal(getPoll(world.db, poll.id).status, 'passed');
+});
+
+test('a private close defers when the channel (and so its viewer count) is unavailable', async (t) => {
+  const world = makeWorld(t, {
+    config: { ...CONFIG, hard_no_weight: '-2', threshold_type: 'count', threshold_value: 2 },
+  });
+  // no wirePrivateChannel: fetching chan-priv falls through to the base fetch
+  const baseFetch = world.guild.channels.fetch;
+  world.guild.channels.fetch = async (id) => {
+    if (id === 'chan-priv') throw new Error('Unknown Channel');
+    return baseFetch(id);
+  };
+  const poll = makePrivatePoll(world.db);
+  castVote(world.db, poll.id, 'u1', 'yes');
+
+  assert.equal(await closePollPipeline(world.ctx, poll), false);
+  assert.equal(getPoll(world.db, poll.id).status, 'open', 'left for the next sweep');
+  assert.equal(world.dms.length, 0);
+});
+
 test('per-poll-type thresholds are honored at close', async (t) => {
   const { db, ctx, poll } = makeWorld(t, {
     config: {

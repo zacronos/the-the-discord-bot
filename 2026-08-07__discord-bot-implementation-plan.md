@@ -285,6 +285,8 @@ Native Windows Task Scheduler logon-trigger task: no third-party binary (NSSM) o
 
 ## Post-plan change log
 
+- [X] 2026-08-08 (owner request): private-channel handling for channel polls. A channel hidden from `@everyone` gets its poll posted inside itself (voice channels use their built-in text chat — same channel id), so the name never leaks; `polls.is_private` is stamped at creation. Population semantics follow: percent thresholds scale to the channel's viewers, literal thresholds are capped at the viewer count, everyone-has-voted early close counts viewers, closes defer when the viewer count is unknowable, and non-viewers' forged ballot interactions are refused. Creation fails cleanly (with poll cleanup) when the bot itself can't post in the private channel.
+
 - [X] 2026-08-08 (owner request): both bot-built channel dropdowns (deletion and permanence) filter to channels the initiating member can see, restoring the per-user visibility Discord's native channel select provided; forged submissions naming an invisible channel are refused at submit as well.
 
 - [X] 2026-08-08 (owner request): new multi-value `other-permanent-groups` config (add/remove one category per invocation; JSON list column). Channels in these groups are protected: excluded from permanence nominations and never offered for deletion. The permanence poll's channel picker became a bot-built string select (like deletion's) listing only channels outside every permanent group; submit-side validation broadened to match.

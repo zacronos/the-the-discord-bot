@@ -34,6 +34,7 @@ CREATE TABLE IF NOT EXISTS polls (
   type TEXT NOT NULL,             -- 'invite'|'permanent_channel'|'delete_channel'
   subject TEXT NOT NULL,          -- invitee name or channel id
   subject_name TEXT,              -- channel name at nomination (survives deletion)
+  is_private INTEGER NOT NULL DEFAULT 0, -- private-channel poll: posted in the channel, viewer-scoped thresholds
   initiator_id TEXT NOT NULL,
   channel_id TEXT NOT NULL,
   message_id TEXT,
@@ -96,6 +97,7 @@ export function openDb(path) {
     'ALTER TABLE guild_config ADD COLUMN threshold_value_delchan REAL',
     'ALTER TABLE guild_config ADD COLUMN other_permanent_category_ids TEXT',
     'ALTER TABLE polls ADD COLUMN subject_name TEXT',
+    'ALTER TABLE polls ADD COLUMN is_private INTEGER NOT NULL DEFAULT 0',
   ]) {
     try {
       db.exec(alter);

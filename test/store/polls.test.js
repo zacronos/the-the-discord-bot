@@ -47,6 +47,13 @@ test('createPoll stores the human-readable subject name when given', (t) => {
   assert.equal(unnamed.subject_name, null);
 });
 
+test('createPoll records privacy; polls default to public', (t) => {
+  const db = tempDb(t);
+  const priv = createPoll(db, { ...base, type: 'permanent_channel', subject: 'chan-p', isPrivate: true });
+  assert.equal(priv.is_private, 1);
+  assert.equal(createPoll(db, base).is_private, 0);
+});
+
 test('createPoll rejects an unknown poll type', (t) => {
   const db = tempDb(t);
   assert.throws(() => createPoll(db, { ...base, type: 'coup' }), /Unknown poll type: coup/);

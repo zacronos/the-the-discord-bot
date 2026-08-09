@@ -214,6 +214,18 @@ the clock**, and the bot posts a warning in that channel with the exact
 day and time. The deletion happens at that hour — or at the next bot
 startup, if it was offline when the time arrived.
 
+### Private channels
+
+When the nominated channel is **private** (hidden from `@everyone`), the
+poll is posted **inside that channel** instead of the poll channel — for a
+voice channel, in its built-in text chat — so the channel's name is never
+exposed to members who can't already see it. (This means the bot itself
+needs access to the private channel; creation fails with a clear message
+otherwise.) For these polls the voting population is the channel's viewers
+rather than the whole server: a percent threshold applies to the number of
+people who can see the channel, a literal threshold is capped at that
+number, and the everyone-has-voted early close counts only them.
+
 ## How results are decided
 
 A poll closes at its scheduled hour (the bot sweeps once per hour, on the

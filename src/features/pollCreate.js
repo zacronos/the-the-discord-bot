@@ -3,7 +3,7 @@
 import { MessageFlags, PermissionFlagsBits } from 'discord.js';
 import { buildId } from '../discord/customId.js';
 import { getConfig } from '../store/guildConfig.js';
-import { createPoll, listOpen, setMessageId } from '../store/polls.js';
+import { closePoll, createPoll, listOpen, setMessageId } from '../store/polls.js';
 import {
   allPermanentCategoryIds,
   channelKind,
@@ -13,7 +13,7 @@ import {
   thresholdFor,
 } from './configCommands.js';
 import { durationSelectOptions, isAllowedDurationSeconds } from './durations.js';
-import { eligibleVoterCount } from './eligibility.js';
+import { channelViewerCount, eligibleVoterCount, isPrivateChannel } from './eligibility.js';
 import { scheduleEphemeralCleanup } from './ephemeralCleanup.js';
 import { pollTitle, renderPollMessage } from './pollMessage.js';
 import { roundUpToNextHour } from '../util/time.js';
@@ -42,7 +42,7 @@ const channelOption = (channel) => ({
 // Per-user visibility: never offer (or accept) a channel the initiating
 // member cannot see. Real channels always have permissionsFor; its absence
 // only occurs in test fakes, which default to visible.
-function memberCanView(channel, member) {
+export function memberCanView(channel, member) {
   if (typeof channel?.permissionsFor !== 'function') return true;
   const perms = channel.permissionsFor(member);
   return perms ? perms.has(PermissionFlagsBits.ViewChannel) : false;
@@ -238,6 +238,7 @@ export async function handleCreateModal(ctx, interaction, [typePart]) {
 
   let subject;
   let subjectName = null;
+  let nominatedChannel = null;
   if (type === 'invite') {
     subject = collapseWhitespace(values.name);
     if (subject.length < 1 || subject.length > 80) {
@@ -269,6 +270,7 @@ export async function handleCreateModal(ctx, interaction, [typePart]) {
     }
     subject = channelId;
     subjectName = channel.name ?? null;
+    nominatedChannel = channel;
   } else {
     const channelId = first(values.channel);
     const channel = await interaction.guild.channels.fetch(channelId).catch(() => null);
@@ -293,6 +295,7 @@ export async function handleCreateModal(ctx, interaction, [typePart]) {
     }
     subject = channelId;
     subjectName = channel.name ?? null;
+    nominatedChannel = channel;
   }
 
   const key = duplicateKey(type, subject);
@@ -306,6 +309,22 @@ export async function handleCreateModal(ctx, interaction, [typePart]) {
     );
   }
 
+  // Private channels keep their polls to themselves: the poll message is
+  // posted inside the nominated channel (a voice channel's built-in text
+  // chat is the channel itself), so the channel's name never reaches
+  // members who can't already see it.
+  const isPrivate = nominatedChannel ? isPrivateChannel(interaction.guild, nominatedChannel) : false;
+  let destination = isPrivate ? nominatedChannel : null;
+  if (!destination) {
+    destination = await interaction.guild.channels.fetch(cfg.poll_channel_id).catch(() => null);
+    if (!destination) {
+      return replyEphemeral(
+        interaction,
+        '⚠️ The configured poll channel no longer exists — an admin needs to run `/ttdb-config poll-channel`.'
+      );
+    }
+  }
+
   const now = ctx.now?.() ?? Date.now();
   const poll = createPoll(ctx.db, {
     guildId: interaction.guildId,
@@ -313,26 +332,31 @@ export async function handleCreateModal(ctx, interaction, [typePart]) {
     subject,
     subjectName,
     initiatorId: interaction.user.id,
-    channelId: cfg.poll_channel_id,
+    channelId: destination.id,
     createdAt: now,
     closesAt: roundUpToNextHour(now + durationSeconds * 1000, { testMode: ctx.env?.testMode }),
+    isPrivate,
   });
 
-  const pollChannel = await interaction.guild.channels.fetch(cfg.poll_channel_id).catch(() => null);
-  if (!pollChannel) {
+  const eligible = isPrivate
+    ? await channelViewerCount(interaction.guild, nominatedChannel).catch(() => null)
+    : await eligibleVoterCount(ctx.db, interaction.guild).catch(() => null);
+  let message;
+  try {
+    message = await destination.send(renderPollMessage(poll, { responded: 0, eligible }));
+  } catch {
+    closePoll(ctx.db, poll.id, 'aborted', null, now);
     return replyEphemeral(
       interaction,
-      '⚠️ The configured poll channel no longer exists — an admin needs to run `/ttdb-config poll-channel`.'
+      `⚠️ I couldn't post in <#${destination.id}> — for a private channel, make sure I have access and Send Messages there, then try again.`
     );
   }
-  const eligible = await eligibleVoterCount(ctx.db, interaction.guild).catch(() => null);
-  const message = await pollChannel.send(renderPollMessage(poll, { responded: 0, eligible }));
   setMessageId(ctx.db, poll.id, message.id);
   poll.message_id = message.id;
 
   await replyEphemeral(
     interaction,
-    `✅ Your poll is live: **${pollTitle(poll)}**\nhttps://discord.com/channels/${interaction.guildId}/${pollChannel.id}/${message.id}\nYou'll get the result by DM when it closes.`
+    `✅ Your poll is live: **${pollTitle(poll)}**\nhttps://discord.com/channels/${interaction.guildId}/${destination.id}/${message.id}\nYou'll get the result by DM when it closes.`
   );
   // The confirmation cleans itself up just inside the interaction-token
   // window — persisted, so a bot restart cannot lose the timer.

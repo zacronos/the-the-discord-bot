@@ -288,6 +288,67 @@ test('a vote or cast forged from another guild records nothing', async (t) => {
   assert.deepEqual(closed, []);
 });
 
+function privateWorld(db, viewerIds, memberCount = 3) {
+  const poll = createPoll(db, {
+    guildId: 'g1',
+    type: 'permanent_channel',
+    subject: 'chan-priv',
+    initiatorId: 'u9',
+    channelId: 'chan-priv',
+    closesAt: 9_000_000_000,
+    isPrivate: true,
+  });
+  setMessageId(db, poll.id, 'msg-1');
+  const members = new Map(
+    Array.from({ length: memberCount }, (_, i) => [`u${i + 1}`, { id: `u${i + 1}`, user: { bot: false } }])
+  );
+  const message = { edits: [], edit: async (p) => message.edits.push(p) };
+  const channel = {
+    id: 'chan-priv',
+    permissionsFor: (who) => ({ has: () => viewerIds.includes(who?.id) }),
+    messages: { fetch: async () => message },
+  };
+  const guild = {
+    id: 'g1',
+    channels: { fetch: async () => channel },
+    members: { cache: members, fetch: async () => members },
+  };
+  return { poll, guild };
+}
+
+test('a private poll closes early once every channel viewer has voted', async (t) => {
+  clearBallotTracking();
+  clearEligibilityCache();
+  clearRefreshThrottle();
+  const db = tempDb(t);
+  const { poll, guild } = privateWorld(db, ['u1', 'u2']); // 2 viewers of 3 members
+  castVote(db, poll.id, 'u2', 'no');
+  const closed = [];
+  const ctx = { db, closeDuePoll: async (p) => closed.push(p.id), schedule: () => {} };
+
+  const voter = fakeInteraction({ guild, userId: 'u1' });
+  voter.member = { id: 'u1', roles: { cache: { has: () => true } } };
+  await handleCastButton(ctx, voter, [String(poll.id), 'yes']);
+  assert.deepEqual(closed, [poll.id], 'all viewers voted; the third member cannot see the poll');
+});
+
+test('non-viewers cannot open or cast a ballot on a private poll', async (t) => {
+  clearBallotTracking();
+  clearEligibilityCache();
+  clearRefreshThrottle();
+  const db = tempDb(t);
+  const { poll, guild } = privateWorld(db, ['u1']); // u2 cannot see the channel
+  const outsider = fakeInteraction({ guild, userId: 'u2' });
+  outsider.member = { id: 'u2', roles: { cache: { has: () => true } } };
+
+  await handleVoteButton({ db, schedule: () => {} }, outsider, [String(poll.id)]);
+  assert.match(outsider.replies[0].content, /closed/i);
+  assert.equal(outsider.replies[0].components ?? undefined, undefined, 'no ballot options offered');
+
+  await handleCastButton({ db, schedule: () => {} }, outsider, [String(poll.id), 'yes']);
+  assert.equal(getVote(db, poll.id, 'u2'), undefined, 'forged cast records nothing');
+});
+
 test('casting on a closed poll is refused and records nothing', async (t) => {
   const db = tempDb(t);
   const poll = makePoll(db);
