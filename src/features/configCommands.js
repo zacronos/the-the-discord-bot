@@ -10,6 +10,7 @@ import {
   SlashCommandBuilder,
 } from 'discord.js';
 import { getConfig, setConfig } from '../store/guildConfig.js';
+import { isPrivateChannel } from './eligibility.js';
 
 export const HARD_NO_WEIGHTS = ['-2', '-3', '-5', '-10', 'veto'];
 
@@ -419,6 +420,13 @@ export async function handleConfigCommand(ctx, interaction) {
         `${kind === 'voice' ? 'Voice' : 'Text'} channels voted permanent will move into <#${category.id}>.`
       );
       lines.push(...permissionWarnings(interaction, category, CATEGORY_PERMS, 'on that category'));
+      // Promotion promises to make channels public, and the category sync is
+      // what delivers on it — a hidden category would quietly break that.
+      if (isPrivateChannel(interaction.guild, category)) {
+        lines.push(
+          '⚠️ That category is **hidden from @everyone**. Channels voted permanent sync their permissions to it, but permanence is supposed to make a channel **public** — please make the category visible to @everyone.'
+        );
+      }
       saved = true;
       break;
     }

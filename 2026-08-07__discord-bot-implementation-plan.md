@@ -285,6 +285,8 @@ Native Windows Task Scheduler logon-trigger task: no third-party binary (NSSM) o
 
 ## Post-plan change log
 
+- [X] 2026-08-09 (owner request, assessment gap 5): `/ttdb-config permanent-category` now warns when the chosen category is hidden from `@everyone` — the category sync is what delivers the "permanence makes a channel public" promise, so a private category would quietly break it. Warning only; the setting still saves.
+
 - [X] 2026-08-09 (owner request): `/ttdb-set-creator channel member` (guild-only, visible to everyone — authorization in the handler: the recorded creator, or Manage Server, which also fixes unknown/unrecorded creators). Target must be a non-bot member who can see the channel; a no-op handover is reported as such. Updates `known_channels` and re-runs the lock enforcement, so the new creator gains the Manage Channels grant and the old creator's is stripped as a foreign allow; an unrecorded channel gets recorded and locked. Channels in the managed permanent categories or other permanent groups are refused — no permission changes there.
 
 - [X] 2026-08-09 (owner request): `/ttdb-deletions` (Manage Server, guild-only) — `list` shows this server's pending scheduled deletions (channel, `<t:…:F>`/`<t:…:R>` time, originating poll); `cancel channel:<…>` removes the schedule and posts an in-channel notice naming the canceler (mention rendered, never pinged). Cancel verifies the row belongs to the invoking guild; a failed notice never blocks the cancel. New store helpers `listScheduledDeletions`/`getScheduledDeletion`.

@@ -135,6 +135,43 @@ test('other-permanent-groups adds and removes categories from the protected list
   assert.match(lastReply(show).content, /Other permanent groups: <#cat-b>/);
 });
 
+test('permanent-category warns when the category is hidden from @everyone', async (t) => {
+  const db = tempDb(t);
+  const hidden = fakeInteraction({
+    sub: 'permanent-category',
+    opts: { category: { id: 'cat-secret' } },
+  });
+  hidden.guild.roles = { everyone: { id: 'g1' } };
+  const wrapped = hidden.options.getChannel;
+  hidden.options.getChannel = (name) => {
+    const channel = wrapped(name);
+    if (!channel) return channel;
+    const inner = channel.permissionsFor;
+    channel.permissionsFor = (who) => ({ ...inner(who), has: () => who?.id !== 'g1' });
+    return channel;
+  };
+  await handleConfigCommand({ db }, hidden);
+  assert.equal(getConfig(db, 'g1').permanent_category_text_id, 'cat-secret', 'still saves');
+  assert.match(lastReply(hidden).content, /hidden from @everyone/i);
+  assert.match(lastReply(hidden).content, /public/i, 'explains the make-public promise at stake');
+
+  const visible = fakeInteraction({
+    sub: 'permanent-category',
+    opts: { category: { id: 'cat-open' } },
+  });
+  visible.guild.roles = { everyone: { id: 'g1' } };
+  const wrappedVisible = visible.options.getChannel;
+  visible.options.getChannel = (name) => {
+    const channel = wrappedVisible(name);
+    if (!channel) return channel;
+    const inner = channel.permissionsFor;
+    channel.permissionsFor = (who) => ({ ...inner(who), has: () => true });
+    return channel;
+  };
+  await handleConfigCommand({ db }, visible);
+  assert.doesNotMatch(lastReply(visible).content, /hidden from @everyone/i);
+});
+
 test('permanent-category warns about missing category permissions but still saves', async (t) => {
   const db = tempDb(t);
   const interaction = fakeInteraction({
