@@ -1,6 +1,6 @@
 // Poll creation: init-message button → modal (explanation + subject +
 // duration) → validation gates → poll row + public message.
-import { MessageFlags } from 'discord.js';
+import { MessageFlags, PermissionFlagsBits } from 'discord.js';
 import { buildId } from '../discord/customId.js';
 import { getConfig } from '../store/guildConfig.js';
 import { createPoll, listOpen, setMessageId } from '../store/polls.js';
@@ -39,6 +39,15 @@ const channelOption = (channel) => ({
   value: channel.id,
 });
 
+// Per-user visibility: never offer (or accept) a channel the initiating
+// member cannot see. Real channels always have permissionsFor; its absence
+// only occurs in test fakes, which default to visible.
+function memberCanView(channel, member) {
+  if (typeof channel?.permissionsFor !== 'function') return true;
+  const perms = channel.permissionsFor(member);
+  return perms ? perms.has(PermissionFlagsBits.ViewChannel) : false;
+}
+
 // Sort and enforce Discord's 25-option select limit.
 function finalizeChannelOptions(options, what) {
   options.sort((a, b) => a.label.localeCompare(b.label));
@@ -53,13 +62,14 @@ function finalizeChannelOptions(options, what) {
 // (+ the legacy one). "Other" permanent groups are protected and never
 // offered. Discord's channel select cannot filter by category, so the
 // dropdown is a bot-built string select of exactly these channels.
-export function deletableChannelOptions(cfg, allChannels) {
+export function deletableChannelOptions(cfg, allChannels, member) {
   const allowed = new Set(
     [cfg.permanent_category_id, cfg.permanent_category_text_id, cfg.permanent_category_voice_id].filter(Boolean)
   );
   const options = [];
   for (const channel of allChannels.values()) {
     if (!channel || !allowed.has(channel.parentId)) continue;
+    if (!memberCanView(channel, member)) continue;
     options.push(channelOption(channel));
   }
   return finalizeChannelOptions(options, 'deletion');
@@ -69,7 +79,7 @@ export function deletableChannelOptions(cfg, allChannels) {
 // permanent group (managed categories, legacy, or other permanent groups).
 // Voice channels are only offered once a voice category exists — otherwise
 // they would be dead-end options refused at submit.
-export function permanentizableChannelOptions(cfg, allChannels) {
+export function permanentizableChannelOptions(cfg, allChannels, member) {
   const excluded = allPermanentCategoryIds(cfg);
   const voiceConfigured = Boolean(permanentCategoryFor(cfg, 'voice'));
   const options = [];
@@ -79,6 +89,7 @@ export function permanentizableChannelOptions(cfg, allChannels) {
     if (kind !== 0 && kind !== 2) continue; // text and voice only
     if (kind === 2 && !voiceConfigured) continue;
     if (excluded.has(channel.parentId)) continue;
+    if (!memberCanView(channel, member)) continue;
     options.push(channelOption(channel));
   }
   return finalizeChannelOptions(options, 'permanence');
@@ -180,8 +191,8 @@ export async function handleStartButton(ctx, interaction, [typePart]) {
     const allChannels = await interaction.guild.channels.fetch();
     const channelOptions =
       typePart === 'delchan'
-        ? deletableChannelOptions(cfg, allChannels)
-        : permanentizableChannelOptions(cfg, allChannels);
+        ? deletableChannelOptions(cfg, allChannels, interaction.member)
+        : permanentizableChannelOptions(cfg, allChannels, interaction.member);
     if (channelOptions.length === 0) {
       return replyEphemeral(
         interaction,
@@ -244,6 +255,9 @@ export async function handleCreateModal(ctx, interaction, [typePart]) {
     if (!channel) {
       return replyEphemeral(interaction, '⚠️ I could not find that channel.');
     }
+    if (!memberCanView(channel, interaction.member)) {
+      return replyEphemeral(interaction, '⚠️ You can only nominate channels you can see.');
+    }
     const permanentCategories = new Set(
       [cfg.permanent_category_id, cfg.permanent_category_text_id, cfg.permanent_category_voice_id].filter(Boolean)
     );
@@ -260,6 +274,9 @@ export async function handleCreateModal(ctx, interaction, [typePart]) {
     const channel = await interaction.guild.channels.fetch(channelId).catch(() => null);
     if (!channel) {
       return replyEphemeral(interaction, '⚠️ I could not find that channel.');
+    }
+    if (!memberCanView(channel, interaction.member)) {
+      return replyEphemeral(interaction, '⚠️ You can only nominate channels you can see.');
     }
     const kind = channelKind(channel);
     const categoryId = permanentCategoryFor(cfg, kind);

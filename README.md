@@ -152,8 +152,9 @@ to the next hour on the clock.
 Guard rails: if a `poll-starter-role` is configured, only members with that
 role can start polls; duplicate polls (same type and subject as one still
 open) are refused; at most `max-open-polls` polls (default 10) can be open
-at the same time; and channels already in the permanent category can't be
-nominated again.
+at the same time; channels already in the permanent category can't be
+nominated again; and the channel dropdowns only offer (and only accept)
+channels the initiating member can actually see.
 
 ## Voting and privacy
 

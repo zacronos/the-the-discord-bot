@@ -390,6 +390,64 @@ test('the permanence button refuses when every channel is already permanent', as
   assert.match(interaction.replies[0].content, /already in a permanent group/i);
 });
 
+test('the deletion dropdown omits channels the initiator cannot see', async (t) => {
+  const db = tempDb(t);
+  setConfig(db, 'g1', { ...FULL_CONFIG, permanent_category_voice_id: 'cat-v' });
+  const guild = fakeGuild();
+  const hidden = await guild.channels.fetch('chan-owned');
+  hidden.permissionsFor = () => ({ has: () => false });
+
+  const interaction = fakeInteraction({ guild });
+  await handleStartButton({ db }, interaction, ['delchan']);
+  const select = interaction.shown[0].components.find((c) => c.component?.custom_id === 'channel');
+  assert.deepEqual(
+    select.component.options.map((o) => o.value),
+    ['chan-voice-owned'],
+    'the hidden category channel is not offered to this member'
+  );
+});
+
+test('the permanence dropdown omits channels the initiator cannot see', async (t) => {
+  const db = tempDb(t);
+  setConfig(db, 'g1', FULL_CONFIG);
+  const guild = fakeGuild();
+  const hidden = await guild.channels.fetch('chan-target');
+  hidden.permissionsFor = () => ({ has: () => false });
+
+  const interaction = fakeInteraction({ guild });
+  await handleStartButton({ db }, interaction, ['permchan']);
+  const select = interaction.shown[0].components.find((c) => c.component?.custom_id === 'channel');
+  const values = select.component.options.map((o) => o.value);
+  assert.ok(!values.includes('chan-target'), 'hidden channel not offered');
+  assert.ok(values.includes('chan-poll'), 'visible channels still offered');
+});
+
+test('a forged submission for an invisible channel is refused (both channel poll types)', async (t) => {
+  clearEligibilityCache();
+  const db = tempDb(t);
+  setConfig(db, 'g1', FULL_CONFIG);
+
+  const delGuild = fakeGuild();
+  (await delGuild.channels.fetch('chan-owned')).permissionsFor = () => ({ has: () => false });
+  const delSubmit = fakeInteraction({
+    guild: delGuild,
+    values: { channel: ['chan-owned'], duration: ['604800'] },
+  });
+  await handleCreateModal({ db }, delSubmit, ['delchan']);
+  assert.equal(listOpen(db, 'g1').length, 0);
+  assert.match(delSubmit.replies[0].content, /channels you can see/i);
+
+  const permGuild = fakeGuild();
+  (await permGuild.channels.fetch('chan-target')).permissionsFor = () => ({ has: () => false });
+  const permSubmit = fakeInteraction({
+    guild: permGuild,
+    values: { channel: ['chan-target'], duration: ['604800'] },
+  });
+  await handleCreateModal({ db }, permSubmit, ['permchan']);
+  assert.equal(listOpen(db, 'g1').length, 0);
+  assert.match(permSubmit.replies[0].content, /channels you can see/i);
+});
+
 test('the deletion dropdown caps at the 25-option component limit', async (t) => {
   const db = tempDb(t);
   setConfig(db, 'g1', FULL_CONFIG);

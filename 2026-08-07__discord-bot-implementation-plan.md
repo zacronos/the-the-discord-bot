@@ -285,6 +285,8 @@ Native Windows Task Scheduler logon-trigger task: no third-party binary (NSSM) o
 
 ## Post-plan change log
 
+- [X] 2026-08-08 (owner request): both bot-built channel dropdowns (deletion and permanence) filter to channels the initiating member can see, restoring the per-user visibility Discord's native channel select provided; forged submissions naming an invisible channel are refused at submit as well.
+
 - [X] 2026-08-08 (owner request): new multi-value `other-permanent-groups` config (add/remove one category per invocation; JSON list column). Channels in these groups are protected: excluded from permanence nominations and never offered for deletion. The permanence poll's channel picker became a bot-built string select (like deletion's) listing only channels outside every permanent group; submit-side validation broadened to match.
 
 - [X] 2026-08-08 (owner request): the deletion poll's channel dropdown now shows only channels from the configured permanent categories. Discord's ChannelSelect can't filter by category, so it became a bot-built string select (options enumerated at button-press time, `#`/🔊 labels, 25-option cap, empty-category refusal); submit-side category validation retained as defense-in-depth.
