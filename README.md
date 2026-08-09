@@ -221,7 +221,8 @@ and syncing it.
 
 Asks which channel should be deleted — the dropdown lists **every text
 and voice channel you can see**, except channels inside the
-`other-permanent-groups` categories, which are protected (text prefixed
+`other-permanent-groups` categories (protected) and the configured poll
+and invite channels, which keep the polls running (text prefixed
 `#`, voice prefixed 🔊; Discord select menus cap the list at 25). Deletion
 polls have **two** `pass-threshold`s: `poll-type:channel-deletion` covers
 channels inside the configured permanent categories, and

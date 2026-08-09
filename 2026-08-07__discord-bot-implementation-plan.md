@@ -285,6 +285,8 @@ Native Windows Task Scheduler logon-trigger task: no third-party binary (NSSM) o
 
 ## Post-plan change log
 
+- [X] 2026-08-09 (owner request, assessment gap 1): the configured poll channel and invite channel are excluded from deletion nominations (dropdown and submit validation) — the bot must not be voted into deleting its own operating surface.
+
 - [X] 2026-08-09 (owner request, assessment gap 2): deletion-lifecycle guards. A passed permanence poll cancels the channel's pending scheduled deletion (noted in the result DM), and the deletion sweep re-checks at execution time — a channel inside any permanent group is spared and its schedule dropped. Decided **against** refusing concurrent cross-type polls on one channel (owner): a perpetually renewed permanence poll could otherwise filibuster deletion votes.
 
 - [X] 2026-08-09 (owner request, assessment gap 6): documented (README, channel-protection section) that a locked channel moved into an `other-permanent-groups` category keeps its creator-lock overwrites — the bot stops touching such channels entirely and never cleans them up; removal is manual. Decision: document the asymmetry rather than auto-clean on transition.

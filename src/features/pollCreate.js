@@ -82,9 +82,15 @@ function finalizeChannelOptions(options, what) {
 // while its own threshold is configured — no dead-end options. Discord's
 // channel select cannot filter by category, so the dropdown is a bot-built
 // string select of exactly these channels.
+// The channels the bot itself operates through — deleting them would break
+// the polls that deleted them.
+const infrastructureChannelIds = (cfg) =>
+  new Set([cfg?.poll_channel_id, cfg?.invite_channel_id].filter(Boolean));
+
 export function deletableChannelOptions(cfg, allChannels, member) {
   const protectedIds = new Set(otherPermanentCategoryIds(cfg));
   const managedIds = managedPermanentCategoryIds(cfg);
+  const infrastructure = infrastructureChannelIds(cfg);
   const kindEnabled = {
     permanent: Boolean(deletionThresholdFor(cfg, 'permanent')),
     other: Boolean(deletionThresholdFor(cfg, 'other')),
@@ -95,6 +101,7 @@ export function deletableChannelOptions(cfg, allChannels, member) {
     const type = channel.type ?? 0;
     if (type !== 0 && type !== 2) continue; // text and voice only
     if (protectedIds.has(channel.parentId)) continue;
+    if (infrastructure.has(channel.id)) continue;
     if (!kindEnabled[managedIds.has(channel.parentId) ? 'permanent' : 'other']) continue;
     if (!memberCanView(channel, member)) continue;
     options.push(channelOption(channel));
@@ -292,6 +299,12 @@ export async function handleCreateModal(ctx, interaction, [typePart]) {
       return replyEphemeral(
         interaction,
         "⚠️ That channel is in a protected permanent group and can't be voted for deletion."
+      );
+    }
+    if (infrastructureChannelIds(cfg).has(channel.id)) {
+      return replyEphemeral(
+        interaction,
+        "⚠️ The poll channel and invite channel keep the polls running — they can't be voted for deletion."
       );
     }
     const isPermanentKind = managedPermanentCategoryIds(cfg).has(channel.parentId);

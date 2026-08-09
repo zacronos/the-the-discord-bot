@@ -306,8 +306,8 @@ test('channel-deletion polls need a threshold, and each kind unlocks its own cha
   const bothSelect = both.shown[0].components.find((c) => c.component?.custom_id === 'channel');
   assert.deepEqual(
     bothSelect.component.options.map((o) => o.value),
-    ['chan-other', 'chan-owned', 'chan-poll', 'chan-target', 'chan-voice', 'chan-voice-owned'],
-    'both thresholds set: every visible text/voice channel is offered'
+    ['chan-other', 'chan-owned', 'chan-target', 'chan-voice', 'chan-voice-owned'],
+    'both thresholds set: every nominable channel is offered (never the poll channel)'
   );
 });
 
@@ -329,7 +329,7 @@ test('only the other-channel threshold set: permanent-category channels are not 
   const select = interaction.shown[0].components.find((c) => c.component?.custom_id === 'channel');
   assert.deepEqual(
     select.component.options.map((o) => o.value),
-    ['chan-other', 'chan-poll', 'chan-target', 'chan-voice', 'chan-voice-owned'],
+    ['chan-other', 'chan-target', 'chan-voice', 'chan-voice-owned'],
     'the permanent-category channel stays locked behind its own threshold'
   );
 });
@@ -388,7 +388,6 @@ test('the deletion dropdown lists every visible text and voice channel outside p
     select.component.options,
     [
       { label: '#perm-chat', value: 'chan-owned' },
-      { label: '#polls', value: 'chan-poll' },
       { label: '#target', value: 'chan-target' },
       { label: '🔊 lounge', value: 'chan-voice' },
       { label: '🔊 perm-voice', value: 'chan-voice-owned' },
@@ -424,8 +423,8 @@ test('other permanent groups are protected from the deletion dropdown', async (t
   const select = interaction.shown[0].components.find((c) => c.component?.custom_id === 'channel');
   assert.deepEqual(
     select.component.options.map((o) => o.value),
-    ['chan-owned', 'chan-poll', 'chan-target', 'chan-voice', 'chan-voice-owned'],
-    'everything visible is deletable — except the other permanent groups'
+    ['chan-owned', 'chan-target', 'chan-voice', 'chan-voice-owned'],
+    'everything nominable is deletable — except the other permanent groups'
   );
 });
 
@@ -497,7 +496,7 @@ test('the deletion dropdown omits channels the initiator cannot see', async (t) 
   const select = interaction.shown[0].components.find((c) => c.component?.custom_id === 'channel');
   assert.deepEqual(
     select.component.options.map((o) => o.value),
-    ['chan-other', 'chan-poll', 'chan-target', 'chan-voice', 'chan-voice-owned'],
+    ['chan-other', 'chan-target', 'chan-voice', 'chan-voice-owned'],
     'the hidden channel is not offered to this member'
   );
 });
@@ -701,6 +700,27 @@ test('other-permanent-group channels are refused for deletion; any other visible
   assert.equal(poll.type, 'delete_channel');
   assert.equal(poll.subject, 'chan-target');
   assert.equal(poll.subject_name, 'target', 'the name is captured for post-deletion DMs');
+});
+
+test('the poll channel and invite channel cannot be nominated for deletion', async (t) => {
+  clearEligibilityCache();
+  const db = tempDb(t);
+  setConfig(db, 'g1', { ...FULL_CONFIG, invite_channel_id: 'chan-target' });
+
+  const dropdown = fakeInteraction({ guild: fakeGuild() });
+  await handleStartButton({ db }, dropdown, ['delchan']);
+  const select = dropdown.shown[0].components.find((c) => c.component?.custom_id === 'channel');
+  const values = select.component.options.map((o) => o.value);
+  assert.ok(!values.includes('chan-poll'), 'the poll channel is never offered');
+  assert.ok(!values.includes('chan-target'), 'the invite channel is never offered');
+
+  const forged = fakeInteraction({
+    guild: fakeGuild(),
+    values: { channel: ['chan-poll'], duration: ['604800'] },
+  });
+  await handleCreateModal({ db }, forged, ['delchan']);
+  assert.equal(listOpen(db, 'g1').length, 0);
+  assert.match(forged.replies[0].content, /keep the polls running/i);
 });
 
 test('a forged deletion submission naming a category is refused', async (t) => {
