@@ -289,6 +289,12 @@ Once a day the bot re-checks every recorded non-permanent channel and
 corrects any drift: a missing `@everyone` deny, a missing creator grant,
 or a Manage Channels grant someone slipped onto another role or member.
 
+One asymmetry to know about: if a locked channel is later moved into an
+`other-permanent-groups` category, the bot stops touching it entirely —
+the creator lock it already carries (the `@everyone` Manage Channels
+deny and the creator's grant) stays behind. Remove those overwrites by
+hand if they're unwanted there.
+
 Creator privileges can be handed over with
 `/ttdb-set-creator channel:<#channel> member:<@member>` — usable by the
 channel's recorded creator, or by anyone with **Manage Server** (which is

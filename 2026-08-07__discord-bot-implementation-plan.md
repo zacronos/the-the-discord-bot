@@ -285,6 +285,8 @@ Native Windows Task Scheduler logon-trigger task: no third-party binary (NSSM) o
 
 ## Post-plan change log
 
+- [X] 2026-08-09 (owner request, assessment gap 6): documented (README, channel-protection section) that a locked channel moved into an `other-permanent-groups` category keeps its creator-lock overwrites — the bot stops touching such channels entirely and never cleans them up; removal is manual. Decision: document the asymmetry rather than auto-clean on transition.
+
 - [X] 2026-08-09 (owner request, assessment gap 5): `/ttdb-config permanent-category` now warns when the chosen category is hidden from `@everyone` — the category sync is what delivers the "permanence makes a channel public" promise, so a private category would quietly break it. Warning only; the setting still saves.
 
 - [X] 2026-08-09 (owner request): `/ttdb-set-creator channel member` (guild-only, visible to everyone — authorization in the handler: the recorded creator, or Manage Server, which also fixes unknown/unrecorded creators). Target must be a non-bot member who can see the channel; a no-op handover is reported as such. Updates `known_channels` and re-runs the lock enforcement, so the new creator gains the Manage Channels grant and the old creator's is stripped as a foreign allow; an unrecorded channel gets recorded and locked. Channels in the managed permanent categories or other permanent groups are refused — no permission changes there.
