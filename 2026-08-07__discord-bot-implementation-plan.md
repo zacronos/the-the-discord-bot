@@ -285,6 +285,8 @@ Native Windows Task Scheduler logon-trigger task: no third-party binary (NSSM) o
 
 ## Post-plan change log
 
+- [X] 2026-08-09 (owner request): init-message copy — the permanent-kind deletion threshold line is labeled "Channel-deletion polls (permanent channels)" (was "…(permanent categories)"), and the "(Hard no is not available…)" exception note is removed from the points rulebook; the rule itself is unchanged and still shown per-poll in the Pass rules field. Both change the content hash, so the live message edits itself in place.
+
 - [X] 2026-08-09 (owner request): Hard no is not allowed on deletion polls for channels outside the managed permanent categories. Enforced at every layer: the ballot omits the button (kind resolved at press time via the shared `deletionKind` helper), a forged `cast … hard_no` is refused, the poll message's Pass rules say "Hard no **not available**", the init message documents the exception, and the close pipeline counts any Hard no that slipped in through a mid-poll category move as a plain No — never a veto. Permanent-category deletion polls keep Hard no and its veto power unchanged.
 
 - [X] 2026-08-09 (owner request, assessment item 6): initiator poll withdrawal. The initiator's own ballot carries a fifth (danger) button — `withdraw:<pollId>` — that cancels the open poll for everyone: public message deleted, poll aborted (votes purged, other ballots dismissed), cancellation DM sent; the pressed panel morphs into the confirmation and is kept out of the ballot cleanup. Handler re-checks initiator + open status, so forged presses are refused.

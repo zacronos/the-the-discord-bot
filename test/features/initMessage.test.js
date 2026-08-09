@@ -88,10 +88,10 @@ test('the init message explains point totaling as a bullet list that tracks the 
     description,
     /• Hard no {2}=> {2}\*\*vetoes the poll\*\* \(it fails outright if there are any vetoes\)/
   );
-  assert.match(
+  assert.doesNotMatch(
     description,
-    /Hard no is not available on deletion polls for channels outside the permanent categories/,
-    'the per-kind exception is documented next to the weights'
+    /Hard no is not available/,
+    'the per-kind exception lives on the poll messages themselves, not the rulebook'
   );
   assert.doesNotMatch(
     description.split('\n')[0],
@@ -126,7 +126,7 @@ test('the init message ends with the per-poll-type thresholds and tracks changes
   assert.match(description, /• Channel-permanence polls: _3 points total_/);
   assert.match(
     description,
-    /• Channel-deletion polls \(permanent categories\): _3 points total_/,
+    /• Channel-deletion polls \(permanent channels\): _3 points total_/,
     'legacy threshold covers both deletion kinds'
   );
   assert.match(description, /• Channel-deletion polls \(other channels\): _3 points total_/);
@@ -156,12 +156,12 @@ test('the init message marks each channel-deletion kind as not set until its thr
   };
   const before = buildInitMessage(cfg);
   const description = before.embeds[0].data.description;
-  assert.match(description, /• Channel-deletion polls \(permanent categories\): _not set_/);
+  assert.match(description, /• Channel-deletion polls \(permanent channels\): _not set_/);
   assert.match(description, /• Channel-deletion polls \(other channels\): _not set_/);
   assert.doesNotMatch(description, /undefined|NaN|null/);
 
   const half = buildInitMessage({ ...cfg, threshold_type_delchan: 'count', threshold_value_delchan: 4 });
-  assert.match(half.embeds[0].data.description, /• Channel-deletion polls \(permanent categories\): _4 points total_/);
+  assert.match(half.embeds[0].data.description, /• Channel-deletion polls \(permanent channels\): _4 points total_/);
   assert.match(
     half.embeds[0].data.description,
     /• Channel-deletion polls \(other channels\): _not set_/,

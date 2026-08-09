@@ -50,7 +50,6 @@ function pointsParagraph(cfg) {
     '• No  =>  **−1**',
     '• Abstain  =>  **0**',
     `• Hard no  =>  ${hardNoDescription(cfg)}`,
-    '(Hard no is not available on deletion polls for channels outside the permanent categories.)',
   ].join('\n');
 }
 
@@ -62,7 +61,7 @@ function thresholdList(cfg) {
     'The point total at poll closing must be at least:',
     line('Invite polls', thresholdFor(cfg, 'invite')),
     line('Channel-permanence polls', thresholdFor(cfg, 'permanent_channel')),
-    line('Channel-deletion polls (permanent categories)', deletionThresholdFor(cfg, 'permanent')),
+    line('Channel-deletion polls (permanent channels)', deletionThresholdFor(cfg, 'permanent')),
     line('Channel-deletion polls (other channels)', deletionThresholdFor(cfg, 'other')),
   ].join('\n');
 }
