@@ -8,10 +8,13 @@ import {
   thresholdFor,
 } from '../features/configCommands.js';
 
+// Which deletion bar applies to this subject channel, right now.
+export async function deletionKind(guild, cfg, channelId) {
+  const channel = await guild.channels.fetch(channelId).catch(() => null);
+  return channel && managedPermanentCategoryIds(cfg).has(channel.parentId) ? 'permanent' : 'other';
+}
+
 export async function resolvePollThreshold(guild, cfg, poll) {
   if (poll.type !== 'delete_channel') return thresholdFor(cfg, poll.type);
-  const channel = await guild.channels.fetch(poll.subject).catch(() => null);
-  const kind =
-    channel && managedPermanentCategoryIds(cfg).has(channel.parentId) ? 'permanent' : 'other';
-  return deletionThresholdFor(cfg, kind);
+  return deletionThresholdFor(cfg, await deletionKind(guild, cfg, poll.subject));
 }

@@ -88,6 +88,11 @@ test('the init message explains point totaling as a bullet list that tracks the 
     description,
     /• Hard no {2}=> {2}\*\*vetoes the poll\*\* \(it fails outright if there are any vetoes\)/
   );
+  assert.match(
+    description,
+    /Hard no is not available on deletion polls for channels outside the permanent categories/,
+    'the per-kind exception is documented next to the weights'
+  );
   assert.doesNotMatch(
     description.split('\n')[0],
     /Votes are\n/,

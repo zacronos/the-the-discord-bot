@@ -181,3 +181,26 @@ test('refreshPollCounts keeps the pass rules current with config changes', async
   await refreshPollCounts({ db }, guild, poll, { force: true });
   assert.match(rulesOf(edits[1]), /at least \*\*8 points total\*\*/, 'mid-poll changes surface on refresh');
 });
+
+test('pollRulesFor notes that Hard no is unavailable on non-permanent deletion polls', async (t) => {
+  const db = tempDb(t);
+  setConfig(db, 'g1', {
+    hard_no_weight: '-3',
+    permanent_category_id: 'cat-1',
+    threshold_type_delchan: 'count',
+    threshold_value_delchan: 9,
+    threshold_type_delchan_other: 'count',
+    threshold_value_delchan_other: 2,
+  });
+  const guild = {
+    id: 'g1',
+    channels: { fetch: async (id) => ({ id, parentId: id === 'chan-perm' ? 'cat-1' : null }) },
+  };
+
+  const other = await pollRulesFor({ db }, guild, { type: 'delete_channel', subject: 'chan-free' });
+  assert.match(other, /Hard no \*\*not available\*\*/i);
+  assert.doesNotMatch(other, /−3/);
+
+  const perm = await pollRulesFor({ db }, guild, { type: 'delete_channel', subject: 'chan-perm' });
+  assert.match(perm, /Hard no \*\*−3\*\*/, 'permanent-category deletions keep the weight');
+});

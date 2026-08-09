@@ -285,6 +285,8 @@ Native Windows Task Scheduler logon-trigger task: no third-party binary (NSSM) o
 
 ## Post-plan change log
 
+- [X] 2026-08-09 (owner request): Hard no is not allowed on deletion polls for channels outside the managed permanent categories. Enforced at every layer: the ballot omits the button (kind resolved at press time via the shared `deletionKind` helper), a forged `cast … hard_no` is refused, the poll message's Pass rules say "Hard no **not available**", the init message documents the exception, and the close pipeline counts any Hard no that slipped in through a mid-poll category move as a plain No — never a veto. Permanent-category deletion polls keep Hard no and its veto power unchanged.
+
 - [X] 2026-08-09 (owner request, assessment item 6): initiator poll withdrawal. The initiator's own ballot carries a fifth (danger) button — `withdraw:<pollId>` — that cancels the open poll for everyone: public message deleted, poll aborted (votes purged, other ballots dismissed), cancellation DM sent; the pressed panel morphs into the confirmation and is kept out of the ballot cleanup. Handler re-checks initiator + open status, so forged presses are refused.
 
 - [X] 2026-08-09 (owner request, assessment item 5): automated daily database backup — `VACUUM INTO data/backups/the-the-<date>.sqlite3` from the hourly sweep, gated once per day (hourly in test mode) via `app_state`, newest 7 kept, `:memory:` skipped. Replaces the "stop the bot and copy the file" README advice.

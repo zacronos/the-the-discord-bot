@@ -314,7 +314,8 @@ test('votes from members who left are dropped before tallying (Q2)', async (t) =
 
 function wireDoomedChannel(world) {
   const warned = [];
-  const doomed = { id: 'chan-doomed', send: async (p) => warned.push(p) };
+  // Lives in the configured permanent category: vetoes stay possible here.
+  const doomed = { id: 'chan-doomed', parentId: 'cat-1', send: async (p) => warned.push(p) };
   const baseFetch = world.guild.channels.fetch;
   world.guild.channels.fetch = async (id) => (id === 'chan-doomed' ? doomed : baseFetch(id));
   world.ctx.actions.delete_channel = deleteChannelAction;
@@ -776,4 +777,38 @@ test('withdraw refuses non-initiators and closed polls', async (t) => {
   const late = press('u1');
   await handleWithdrawButton(ctx, late.interaction, [String(poll.id)]);
   assert.match(late.updates[0].content, /closed/i);
+});
+
+test('a lingering Hard no on a non-permanent deletion poll counts as a plain No, never a veto', async (t) => {
+  const config = {
+    poll_channel_id: 'chan-poll',
+    hard_no_weight: 'veto',
+    permanent_category_id: 'cat-1',
+    threshold_type_delchan_other: 'count',
+    threshold_value_delchan_other: 1,
+  };
+  const { db, ctx, guild, dms } = makeWorld(t, { config });
+  const original = guild.channels.fetch;
+  guild.channels.fetch = async (id) => (id === 'chan-free' ? { id, parentId: null } : original(id));
+
+  const poll = createPoll(db, {
+    guildId: 'g1',
+    type: 'delete_channel',
+    subject: 'chan-free',
+    subjectName: 'free',
+    initiatorId: 'u1',
+    channelId: 'chan-poll',
+    closesAt: 5_000,
+  });
+  setMessageId(db, poll.id, 'msg-1');
+  castVote(db, poll.id, 'u1', 'yes');
+  castVote(db, poll.id, 'u2', 'yes');
+  castVote(db, poll.id, 'u3', 'hard_no'); // slipped in via a mid-poll category move
+
+  await closePollPipeline(ctx, poll);
+
+  const closed = getPoll(db, poll.id);
+  assert.equal(closed.status, 'passed', '2 yes − 1 no = 1 meets the bar of 1; the veto never fires');
+  assert.equal(closed.veto_count, 0);
+  assert.ok(!dms.some((d) => /because of your veto/.test(d.content)), 'nobody is told they vetoed');
 });

@@ -13,7 +13,7 @@ import {
   listVoters,
   listVotersByChoice,
 } from '../store/votes.js';
-import { resolvePollThreshold } from '../polls/threshold.js';
+import { deletionKind, resolvePollThreshold } from '../polls/threshold.js';
 import { deleteBallots, untrackBallot } from './ballot.js';
 import { fetchGuildMembers, pollPopulation } from './eligibility.js';
 
@@ -136,6 +136,15 @@ export async function closePollPipeline(ctx, poll) {
       : threshold;
   const votersCount = countVoters(ctx.db, poll.id);
   const counts = countByChoice(ctx.db, poll.id);
+  // Hard no is not allowed on deletion polls for non-permanent channels; any
+  // that slipped in through a mid-poll category move counts as a plain No,
+  // never a veto.
+  if (poll.type === 'delete_channel' && counts.hard_no > 0) {
+    if ((await deletionKind(guild, cfg, poll.subject)) === 'other') {
+      counts.no += counts.hard_no;
+      counts.hard_no = 0;
+    }
+  }
   const result = tallyPoll({
     counts,
     hardNoWeight: cfg.hard_no_weight,

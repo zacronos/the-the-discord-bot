@@ -6,9 +6,14 @@
 import { ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder } from 'discord.js';
 import { buildId } from '../discord/customId.js';
 import { getConfig } from '../store/guildConfig.js';
-import { resolvePollThreshold } from '../polls/threshold.js';
+import { deletionKind } from '../polls/threshold.js';
 import { countVoters } from '../store/votes.js';
-import { formatThreshold, hardNoDescription } from './configCommands.js';
+import {
+  deletionThresholdFor,
+  formatThreshold,
+  hardNoDescription,
+  thresholdFor,
+} from './configCommands.js';
 import { pollPopulation } from './eligibility.js';
 
 export function pollTitle(poll) {
@@ -22,8 +27,17 @@ export function pollTitle(poll) {
 // same logic the close pipeline uses.
 export async function pollRulesFor(ctx, guild, poll) {
   const cfg = getConfig(ctx.db, guild.id) ?? {};
-  const threshold = await resolvePollThreshold(guild, cfg, poll);
-  const votesLine = `Yes **+1** · No **−1** · Abstain **0** · Hard no ${hardNoDescription(cfg)}`;
+  let threshold;
+  let hardNoPart = `Hard no ${hardNoDescription(cfg)}`;
+  if (poll.type === 'delete_channel') {
+    const kind = await deletionKind(guild, cfg, poll.subject);
+    threshold = deletionThresholdFor(cfg, kind);
+    // Hard no is reserved for permanent-category deletions.
+    if (kind === 'other') hardNoPart = 'Hard no **not available** on this poll';
+  } else {
+    threshold = thresholdFor(cfg, poll.type);
+  }
+  const votesLine = `Yes **+1** · No **−1** · Abstain **0** · ${hardNoPart}`;
   const passLine = threshold
     ? `Passes when the point total at close is at least **${formatThreshold(threshold)}**.`
     : "Can't pass yet — this poll type's pass threshold is not configured.";

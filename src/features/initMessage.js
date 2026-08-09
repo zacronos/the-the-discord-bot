@@ -50,6 +50,7 @@ function pointsParagraph(cfg) {
     '• No  =>  **−1**',
     '• Abstain  =>  **0**',
     `• Hard no  =>  ${hardNoDescription(cfg)}`,
+    '(Hard no is not available on deletion polls for channels outside the permanent categories.)',
   ].join('\n');
 }
 

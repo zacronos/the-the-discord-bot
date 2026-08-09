@@ -2,8 +2,10 @@
 // their current vote and the four choices. Votes can change until close.
 import { ActionRowBuilder, ButtonBuilder, ButtonStyle, MessageFlags } from 'discord.js';
 import { buildId } from '../discord/customId.js';
+import { getConfig } from '../store/guildConfig.js';
 import { getPoll } from '../store/polls.js';
 import { castVote, countVoters, getVote } from '../store/votes.js';
+import { deletionKind } from '../polls/threshold.js';
 import { pollPopulation } from './eligibility.js';
 import { memberCanView } from './pollCreate.js';
 import { pollTitle, refreshPollCounts } from './pollMessage.js';
@@ -103,13 +105,16 @@ const CHOICE_STYLES = {
   abstain: ButtonStyle.Secondary,
 };
 
-export function buildBallot(poll, currentChoice, { isInitiator = false } = {}) {
+export function buildBallot(poll, currentChoice, { isInitiator = false, allowHardNo = true } = {}) {
   const status = currentChoice
     ? `Your current vote: **${choiceLabel(poll.type, currentChoice)}**\nOnly you can see this. You can change your vote until the poll closes.`
     : "You haven't voted yet. Only you can see this ballot — pick an option:";
   // The subject is user-supplied and sits in message content: never let it ping.
   const content = `**${pollTitle(poll)}**\n\n${status}`;
-  const rows = ['yes', 'no', 'hard_no', 'abstain'].map((choice) =>
+  const choices = ['yes', 'no', 'hard_no', 'abstain'].filter(
+    (choice) => allowHardNo || choice !== 'hard_no'
+  );
+  const rows = choices.map((choice) =>
     new ActionRowBuilder().addComponents(
       new ButtonBuilder()
         .setCustomId(buildId('cast', poll.id, choice))
@@ -139,6 +144,14 @@ async function canParticipate(ctx, interaction, poll) {
   return channel ? memberCanView(channel, interaction.member) : false;
 }
 
+// Hard no — and its veto power — is reserved for community-owned things:
+// deletion polls for channels outside the permanent categories go without.
+async function hardNoAllowed(ctx, guild, poll) {
+  if (poll.type !== 'delete_channel') return true;
+  const cfg = getConfig(ctx.db, guild.id) ?? {};
+  return (await deletionKind(guild, cfg, poll.subject)) === 'permanent';
+}
+
 export async function handleVoteButton(ctx, interaction, [pollIdRaw]) {
   const poll = getPoll(ctx.db, Number(pollIdRaw));
   if (
@@ -151,7 +164,10 @@ export async function handleVoteButton(ctx, interaction, [pollIdRaw]) {
   }
   const current = getVote(ctx.db, poll.id, interaction.user.id);
   await interaction.reply({
-    ...buildBallot(poll, current, { isInitiator: interaction.user.id === poll.initiator_id }),
+    ...buildBallot(poll, current, {
+      isInitiator: interaction.user.id === poll.initiator_id,
+      allowHardNo: await hardNoAllowed(ctx, interaction.guild, poll),
+    }),
     flags: MessageFlags.Ephemeral,
   });
   trackBallot(ctx, poll, interaction, ctx.now?.() ?? Date.now());
@@ -166,6 +182,12 @@ export async function handleCastButton(ctx, interaction, [pollIdRaw, choice]) {
     !(await canParticipate(ctx, interaction, poll))
   ) {
     return interaction.update({ content: 'This poll has closed.', components: [] });
+  }
+  if (choice === 'hard_no' && !(await hardNoAllowed(ctx, interaction.guild, poll))) {
+    return interaction.update({
+      content: 'Hard no is not available on this poll — reopen the ballot and pick another option.',
+      components: [],
+    });
   }
   castVote(ctx.db, poll.id, interaction.user.id, choice);
   // The ballot disappears once the vote is cast; the Vote button re-opens

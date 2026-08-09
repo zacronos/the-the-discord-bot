@@ -375,3 +375,47 @@ test("the initiator's ballot carries a withdraw button; other voters' do not", a
   const voterIds = voter.replies[0].components.flatMap((row) => row.components.map((b) => b.data.custom_id));
   assert.ok(!voterIds.some((id) => id.startsWith('ttdb:withdraw')), 'ordinary voters do not');
 });
+
+test('deletion polls for non-permanent channels offer no Hard no; permanent-category ones do', async (t) => {
+  clearEligibilityCache();
+  const db = tempDb(t);
+  setConfig(db, 'g1', { permanent_category_id: 'cat-1' });
+  const guild = fakeGuild();
+  const subjects = {
+    'chan-free': { id: 'chan-free', parentId: null },
+    'chan-perm': { id: 'chan-perm', parentId: 'cat-1' },
+  };
+  const orig = guild.channels.fetch;
+  guild.channels.fetch = async (id) => subjects[id] ?? orig(id);
+
+  const freePoll = makePoll(db, { type: 'delete_channel', subject: 'chan-free' });
+  const freeBallot = fakeInteraction({ guild });
+  await handleVoteButton({ db }, freeBallot, [String(freePoll.id)]);
+  const freeIds = freeBallot.replies[0].components.flatMap((row) => row.components.map((b) => b.data.custom_id));
+  assert.ok(!freeIds.includes(`ttdb:cast:${freePoll.id}:hard_no`), 'no Hard no outside the permanent categories');
+  assert.ok(freeIds.includes(`ttdb:cast:${freePoll.id}:no`), 'the other choices remain');
+
+  const permPoll = makePoll(db, { type: 'delete_channel', subject: 'chan-perm' });
+  const permBallot = fakeInteraction({ guild });
+  await handleVoteButton({ db }, permBallot, [String(permPoll.id)]);
+  const permIds = permBallot.replies[0].components.flatMap((row) => row.components.map((b) => b.data.custom_id));
+  assert.ok(permIds.includes(`ttdb:cast:${permPoll.id}:hard_no`), 'permanent-category deletions keep Hard no');
+});
+
+test('a forged Hard no cast on a non-permanent deletion poll is refused', async (t) => {
+  clearEligibilityCache();
+  clearRefreshThrottle();
+  const db = tempDb(t);
+  const guild = fakeGuild();
+  const orig = guild.channels.fetch;
+  guild.channels.fetch = async (id) => (id === 'chan-free' ? { id, parentId: null } : orig(id));
+  const poll = makePoll(db, { type: 'delete_channel', subject: 'chan-free' });
+
+  const interaction = fakeInteraction({ guild });
+  await handleCastButton({ db }, interaction, [String(poll.id), 'hard_no']);
+  assert.equal(getVote(db, poll.id, 'u1'), undefined, 'no vote recorded');
+  assert.match(interaction.updates[0].content, /not available/i);
+
+  await handleCastButton({ db }, interaction, [String(poll.id), 'no']);
+  assert.equal(getVote(db, poll.id, 'u1'), 'no', 'ordinary choices still cast');
+});

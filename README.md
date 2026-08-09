@@ -334,6 +334,11 @@ hour), or immediately once everyone has voted. Votes are then counted:
 | Hard no | the configured `hard-no-weight`: −2 / −3 / −5 / −10, **or `veto`** |
 
 If `hard-no-weight` is `veto`, a single Hard no fails the poll outright.
+**Exception:** deletion polls for channels **outside** the permanent
+categories offer no Hard no at all — their ballots have three options,
+so no single voter can veto them; a Hard no cast before a mid-poll
+category move simply counts as a plain No at close. Vetoes are reserved
+for community-owned (permanent-category) channels.
 Otherwise the poll **passes when the point total at poll closing is at
 least the configured threshold** (settable separately per poll type) —
 either a literal points total, or a percent of the server's current
