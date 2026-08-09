@@ -285,6 +285,8 @@ Native Windows Task Scheduler logon-trigger task: no third-party binary (NSSM) o
 
 ## Post-plan change log
 
+- [X] 2026-08-09 (owner request, assessment item 5): automated daily database backup — `VACUUM INTO data/backups/the-the-<date>.sqlite3` from the hourly sweep, gated once per day (hourly in test mode) via `app_state`, newest 7 kept, `:memory:` skipped. Replaces the "stop the bot and copy the file" README advice.
+
 - [X] 2026-08-09 (owner request, assessment item 4): every poll message carries a "Pass rules" field — vote weights (from `hardNoDescription`) plus the threshold that applies to *this* poll, resolved by the same channel-aware logic the close pipeline uses (extracted to `src/polls/threshold.js`). Refreshes re-render it, so mid-poll config changes are visible on the message instead of silent.
 
 - [X] 2026-08-09 (owner request, assessment gap 1): the configured poll channel and invite channel are excluded from deletion nominations (dropdown and submit validation) — the bot must not be voted into deleting its own operating surface.

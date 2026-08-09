@@ -5,6 +5,7 @@ import { HOUR_MS, MINUTE_MS, msUntilNextBoundary } from '../util/time.js';
 import { getConfig } from '../store/guildConfig.js';
 import { listDue, listOpenAll } from '../store/polls.js';
 import { listDueDeletions, removeScheduledDeletion } from '../store/scheduledDeletions.js';
+import { runDailyBackup } from './backup.js';
 import { runDailyPermissionSweep } from './channelRegistry.js';
 import { allPermanentCategoryIds } from './configCommands.js';
 import { abortPoll } from './pollClose.js';
@@ -65,6 +66,12 @@ export async function runSweep(ctx, now = Date.now()) {
     await runDailyPermissionSweep(ctx, now);
   } catch (err) {
     console.error('[ttdb] daily permission sweep failed:', err);
+  }
+  // Database snapshot, same once-a-day gate.
+  try {
+    runDailyBackup(ctx, now);
+  } catch (err) {
+    console.error('[ttdb] daily backup failed:', err);
   }
 }
 

@@ -387,8 +387,9 @@ powershell -ExecutionPolicy Bypass -File scripts\restart-bot.ps1
 
 Caveat: the bot only collects votes while this machine is awake and logged
 in. Missed poll closes are caught up at the next hourly sweep or startup.
-Occasionally back up `data/the-the.sqlite3` (stop the bot first, copy the
-file).
+The bot snapshots its own database once a day into `data/backups/`
+(newest 7 kept; taken safely while running via `VACUUM INTO`) — copy one
+elsewhere occasionally if you want off-machine safety.
 
 ## Development
 
