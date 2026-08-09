@@ -208,17 +208,20 @@ export function otherPermanentCategoryIds(cfg) {
   }
 }
 
+// The categories the bot itself manages: text/voice (+legacy). Channels in
+// them are community-owned — deletable only via polls, never creator-locked.
+export function managedPermanentCategoryIds(cfg) {
+  return new Set(
+    [cfg?.permanent_category_id, cfg?.permanent_category_text_id, cfg?.permanent_category_voice_id].filter(
+      Boolean
+    )
+  );
+}
+
 // Every category considered permanent: the managed text/voice (+legacy)
 // categories plus all other permanent groups.
 export function allPermanentCategoryIds(cfg) {
-  return new Set(
-    [
-      cfg?.permanent_category_id,
-      cfg?.permanent_category_text_id,
-      cfg?.permanent_category_voice_id,
-      ...otherPermanentCategoryIds(cfg),
-    ].filter(Boolean)
-  );
+  return new Set([...managedPermanentCategoryIds(cfg), ...otherPermanentCategoryIds(cfg)]);
 }
 
 // Required-config gate (Q8). Returns the /ttdb-config subcommand names still

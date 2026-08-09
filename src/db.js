@@ -65,6 +65,12 @@ CREATE TABLE IF NOT EXISTS scheduled_deletions (
   poll_id INTEGER,
   delete_at INTEGER NOT NULL   -- executed by the sweep at/after this time
 );
+CREATE TABLE IF NOT EXISTS known_channels (
+  channel_id TEXT PRIMARY KEY,
+  guild_id TEXT NOT NULL,
+  creator_id TEXT,             -- null = creator unknowable (audit log expired)
+  recorded_at INTEGER NOT NULL
+);
 CREATE TABLE IF NOT EXISTS votes (
   poll_id INTEGER NOT NULL,
   user_id TEXT NOT NULL,

@@ -4,6 +4,7 @@
 import { HOUR_MS, MINUTE_MS, msUntilNextBoundary } from '../util/time.js';
 import { listDue, listOpenAll } from '../store/polls.js';
 import { listDueDeletions, removeScheduledDeletion } from '../store/scheduledDeletions.js';
+import { runDailyPermissionSweep } from './channelRegistry.js';
 import { abortPoll } from './pollClose.js';
 import { refreshPollCounts } from './pollMessage.js';
 
@@ -46,6 +47,12 @@ export async function runSweep(ctx, now = Date.now()) {
     } catch (err) {
       console.error(`[ttdb] scheduled deletion of channel ${row.channel_id} failed:`, err);
     }
+  }
+  // Creator-only-deletion drift correction; internally gated to once a day.
+  try {
+    await runDailyPermissionSweep(ctx, now);
+  } catch (err) {
+    console.error('[ttdb] daily permission sweep failed:', err);
   }
 }
 

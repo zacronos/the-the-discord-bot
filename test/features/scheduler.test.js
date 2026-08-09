@@ -1,6 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { runSweep } from '../../src/features/scheduler.js';
+import { getAppState } from '../../src/store/appState.js';
 import { setConfig } from '../../src/store/guildConfig.js';
 import { createPoll, getPoll, setMessageId } from '../../src/store/polls.js';
 import { listDueDeletions, scheduleDeletion } from '../../src/store/scheduledDeletions.js';
@@ -155,4 +156,20 @@ test('runSweep drops a scheduled deletion whose channel already vanished', async
 
   await runSweep(ctx, 10_000);
   assert.equal(listDueDeletions(db, 999_000).length, 0);
+});
+
+test('runSweep triggers the daily permission sweep once its day has elapsed', async (t) => {
+  const { db, ctx } = makeWorld(t);
+  ctx.closeDuePoll = async () => {};
+  ctx.client.guilds.cache = new Map(); // no guilds — only the gate and stamp matter here
+
+  const DAY = 24 * 3_600_000;
+  await runSweep(ctx, DAY);
+  assert.equal(getAppState(db, 'perm_sweep_at'), String(DAY), 'first sweep of the day runs and stamps');
+
+  await runSweep(ctx, DAY + 3_600_000);
+  assert.equal(getAppState(db, 'perm_sweep_at'), String(DAY), 'an hour later it is skipped');
+
+  await runSweep(ctx, DAY + DAY);
+  assert.equal(getAppState(db, 'perm_sweep_at'), String(DAY + DAY), 'a day later it runs again');
 });

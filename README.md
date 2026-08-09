@@ -98,7 +98,7 @@ settings and refuse to start until all four required ones have values.
 | `max-open-polls value:<1–100>` | no | How many polls may be open at the same time; default 10 |
 | `permanent-category category:<category> kind:<text \| voice>` | yes (text) | The category a channel moves into when a permanence poll passes. `kind` (default: text) sets separate categories for text and voice channels; until a voice category is set, voice channels can't be nominated |
 | `invite-channel channel:<#channel>` | no | Where invite links from passed invite polls land; unset = the server's system channel |
-| `other-permanent-groups category:<category> action:<add \| remove>` | no | Extra categories treated as permanent: their channels can't be nominated for permanence, and are never offered for deletion (run once per category; `action` defaults to add) |
+| `other-permanent-groups category:<category> action:<add \| remove>` | no | Extra categories treated as permanent: their channels can't be nominated for permanence, are never offered for deletion, and are exempt from [creator-only deletion locks](#channel-creators-and-deletion-protection) (run once per category; `action` defaults to add) |
 | `poll-starter-role role:<@role>` | no | Restrict poll *starting* to one role; unset = anyone. Voting is always open to everyone |
 | `show` | — | Show current settings and anything still missing |
 
@@ -230,6 +230,41 @@ set and can't, creation fails with a clear message.) For these polls the voting 
 rather than the whole server: a percent threshold applies to the number of
 people who can see the channel, a literal threshold is capped at that
 number, and the everyone-has-voted early close counts only them.
+
+## Channel creators and deletion protection
+
+The bot keeps a registry of every text and voice channel and who created
+it. New channels are recorded the moment they're created (the creator is
+read from the server's audit log); on startup the bot scans for channels
+it doesn't know yet and records them retroactively. Discord keeps audit
+log entries for ~45 days, so a channel much older than the bot's first
+scan may be recorded with an unknown creator. Channels inside
+`other-permanent-groups` categories are left entirely alone — neither
+tracked nor touched.
+
+Every recorded channel **outside the configured permanent categories** is
+locked so that **only its creator can delete it**: the bot denies
+**Manage Channels** on the channel for `@everyone` and grants it back to
+the creator alone. Server **administrators keep that ability regardless**
+— Discord's Administrator permission bypasses channel overwrites. Two
+consequences worth knowing:
+
+- Discord has no delete-only permission, so the lock uses **Manage
+  Channels**, which also covers editing the channel (name, topic, …):
+  non-creators lose that too, unless they're administrators.
+- If the creator is unknown (audit log expired) or has left the server,
+  the channel is simply locked for everyone below administrator. A
+  returning creator gets their access restored by the daily check.
+
+Channels inside the configured permanent categories are community
+property: they're recorded, but never locked — deleting them is what
+deletion polls are for. Deletion polls also remain the community's
+override for locked channels, since the bot itself deletes the channel
+when one passes.
+
+Once a day the bot re-checks every recorded non-permanent channel and
+corrects any drift: a missing `@everyone` deny, a missing creator grant,
+or a Manage Channels grant someone slipped onto another role or member.
 
 ## How results are decided
 
