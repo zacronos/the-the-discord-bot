@@ -285,6 +285,8 @@ Native Windows Task Scheduler logon-trigger task: no third-party binary (NSSM) o
 
 ## Post-plan change log
 
+- [X] 2026-08-09 (owner request): the install URL now requests server-wide **Administrator** instead of the granular eight-permission set (supersedes the 1.1 `invite-url.mjs` permission computation). Rationale: private-channel polls need the bot inside every private channel, and Administrator is the one grant channel overwrites can't take away; it subsumes the old set. `scripts/invite-url.mjs` and the README's invite section updated. The startup audit and config-time warnings keep their granular checks — they pass trivially under Administrator and still catch installs invited under the old URL.
+
 - [X] 2026-08-08 (owner request): private-channel handling for channel polls. A channel hidden from `@everyone` gets its poll posted inside itself (voice channels use their built-in text chat — same channel id), so the name never leaks; `polls.is_private` is stamped at creation. Population semantics follow: percent thresholds scale to the channel's viewers, literal thresholds are capped at the viewer count, everyone-has-voted early close counts viewers, closes defer when the viewer count is unknowable, and non-viewers' forged ballot interactions are refused. Creation fails cleanly (with poll cleanup) when the bot itself can't post in the private channel.
 
 - [X] 2026-08-08 (owner request): both bot-built channel dropdowns (deletion and permanence) filter to channels the initiating member can see, restoring the per-user visibility Discord's native channel select provided; forged submissions naming an invisible channel are refused at submit as well.

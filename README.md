@@ -62,15 +62,19 @@ npm run invite-url
 Open the printed URL, pick your server, and press **Authorize**. With
 **Public Bot** turned off, only you (the application owner) can complete
 this step, so the bot cannot end up on servers you didn't choose. The URL
-requests the `bot` and `applications.commands` scopes plus exactly the
-permissions the bot needs:
+requests the `bot` and `applications.commands` scopes plus the
+**Administrator** permission for the server. Administrator covers
+everything the bot does — operating the poll channel, announcing polls
+with `@everyone`, creating the single-use invite link when an invite poll
+passes, moving channels into the permanent category — and, unlike a
+granular permission list, it can't be hidden from a private channel by
+that channel's permission overwrites, which
+[private-channel polls](#private-channels) depend on.
 
-| Permission | Why the bot needs it |
-|---|---|
-| View Channel, Send Messages, Embed Links, Read Message History | Operate the poll channel |
-| Mention Everyone | Announce new polls with `@everyone` |
-| Create Instant Invite | Generate the single-use invite link when an invite poll passes |
-| Manage Channels, Manage Roles | Move a channel into the permanent category and sync its permissions when a permanence poll passes |
+Already invited the bot back when the URL requested narrower permissions?
+Either open the invite URL again and re-authorize the same server, or
+enable **Administrator** on the bot's managed role directly (Server
+Settings → Roles).
 
 ## Configuring the bot
 
@@ -219,9 +223,9 @@ startup, if it was offline when the time arrived.
 When the nominated channel is **private** (hidden from `@everyone`), the
 poll is posted **inside that channel** instead of the poll channel — for a
 voice channel, in its built-in text chat — so the channel's name is never
-exposed to members who can't already see it. (This means the bot itself
-needs access to the private channel; creation fails with a clear message
-otherwise.) For these polls the voting population is the channel's viewers
+exposed to members who can't already see it. (The bot's **Administrator** permission guarantees it can
+see the channel; if it was invited with the older, narrower permission
+set and can't, creation fails with a clear message.) For these polls the voting population is the channel's viewers
 rather than the whole server: a percent threshold applies to the number of
 people who can see the channel, a literal threshold is capped at that
 number, and the everyone-has-voted early close counts only them.

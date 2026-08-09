@@ -6,21 +6,13 @@ import { loadEnv } from '../src/env.js';
 
 const { appId } = loadEnv({ required: ['DISCORD_APP_ID'] });
 
-// Everything the bot needs across all features:
-// - poll channel: view / send / embeds / history / mention @everyone
-// - invite polls: create instant invite
-// - permanence polls: manage channels + manage roles (move a channel into a
-//   category and sync its permission overwrites)
-const permissions = PermissionsBitField.resolve([
-  PermissionFlagsBits.ViewChannel,
-  PermissionFlagsBits.SendMessages,
-  PermissionFlagsBits.EmbedLinks,
-  PermissionFlagsBits.ReadMessageHistory,
-  PermissionFlagsBits.MentionEveryone,
-  PermissionFlagsBits.CreateInstantInvite,
-  PermissionFlagsBits.ManageChannels,
-  PermissionFlagsBits.ManageRoles,
-]);
+// The bot requires server-wide Administrator. Private-channel polls only
+// work if no channel overwrite can hide a channel from the bot, and
+// Administrator is the one grant overwrites can't take away; it also
+// subsumes everything else the features use (view / send / embeds /
+// history / mention @everyone, create instant invite, manage channels +
+// manage roles).
+const permissions = PermissionsBitField.resolve(PermissionFlagsBits.Administrator);
 
 const url =
   'https://discord.com/oauth2/authorize' +
